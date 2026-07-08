@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>雨あと水族館 - v8</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+
+  <style>
+    html, body, #map {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #93D3AE;
+    }
+
+    .map-tint {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(to bottom, rgba(147,211,174,0.30), rgba(250,236,182,0.24));
+      mix-blend-mode: multiply;
+      z-index: 2;
+    }
+
+    .panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: min(375px, calc(100vw - 32px));
+      background: rgba(250, 236, 182, 0.93);
+      backdrop-filter: blur(14px);
+      border: 2px solid rgba(255, 255, 255, 0.72);
+      border-radius: 24px;
+      padding: 15px;
+      color: #123936;
+      box-shadow: 0 16px 40px rgba(43, 186, 165, 0.22);
+      z-index: 10;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    p {
+      margin: 0 0 12px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 14px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      font-weight: 800;
+      cursor: pointer;
+      color: white;
+      background: #2BBAA5;
+      box-shadow: 0 5px 0 rgba(18, 57, 54, 0.18);
+    }
+
+    button.orange {
+      background: #F9A822;
+      color: #123936;
+    }
+
+    button.red {
+      background: #F96635;
+      color: white;
+    }
+
+    .view-tabs {
+      display: flex;
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+
+    .view-tabs button {
+      flex: 1;
+      margin: 0;
+      background: rgba(255,255,255,0.72);
+      color: #123936;
+      box-shadow: none;
+      border: 2px solid rgba(43, 186, 165, 0.25);
+    }
+
+    .view-tabs button.active {
+      background: #2BBAA5;
+      color: white;
+      box-shadow: 0 5px 0 rgba(18, 57, 54, 0.18);
+    }
+
+    .avatar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 6px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .avatar-row select {
+      flex: 1;
+      border: 2px solid rgba(43, 186, 165, 0.35);
+      border-radius: 999px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.78);
+      color: #123936;
+      font: inherit;
+      font-weight: 800;
+    }
+
+    #status {
+      margin-top: 7px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .puddle-marker {
+      position: relative;
+      width: 1px;
+      height: 1px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .puddle-scale {
+      position: absolute;
+      left: -46px;
+      top: -36px;
+      width: 92px;
+      height: 72px;
+      transform-origin: center center;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+
+    .puddle-ring {
+      position: absolute;
+      left: 8px;
+      top: 18px;
+      width: 76px;
+      height: 48px;
+      border-radius: 58% 42% 62% 38% / 52% 60% 40% 48%;
+      border: 2px solid rgba(43, 186, 165, 0.24);
+      animation: ringPulse 2.5s ease-in-out infinite;
+    }
+
+    .puddle-blob {
+      position: absolute;
+      left: 12px;
+      top: 22px;
+      width: 68px;
+      height: 40px;
+      background: rgba(43, 186, 165, 0.78);
+      border: 3px solid rgba(250, 236, 182, 0.96);
+      border-radius: 58% 42% 62% 38% / 52% 60% 40% 48%;
+      box-shadow:
+        0 12px 22px rgba(43, 186, 165, 0.28),
+        inset 0 6px 10px rgba(255, 255, 255, 0.45),
+        inset -8px -6px 8px rgba(18, 57, 54, 0.08);
+      animation: puddleBreath 2.6s ease-in-out infinite;
+    }
+
+    .clear .puddle-blob {
+      background: rgba(43, 186, 165, 0.78);
+    }
+
+    .cloudy .puddle-blob {
+      background: rgba(147, 211, 174, 0.82);
+    }
+
+    .muddy .puddle-blob {
+      background: rgba(249, 168, 34, 0.66);
+    }
+
+    .puddle-shine {
+      position: absolute;
+      left: 29px;
+      top: 30px;
+      width: 20px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.64);
+      transform: rotate(-18deg);
+      animation: shineMove 2.8s ease-in-out infinite;
+    }
+
+    .puddle-drop {
+      position: absolute;
+      left: 38px;
+      top: 3px;
+      font-size: 21px;
+      filter: drop-shadow(0 5px 4px rgba(18,57,54,0.18));
+    }
+
+    .fish-wrap {
+      position: absolute;
+      left: 33px;
+      top: 5px;
+      width: 34px;
+      height: 24px;
+      opacity: 1;
+      transition: opacity 0.16s ease;
+      animation: fishFloat 1.9s ease-in-out infinite;
+      filter: drop-shadow(0 8px 5px rgba(18, 57, 54, 0.20));
+    }
+
+    .fish-body {
+      position: absolute;
+      width: 27px;
+      height: 17px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #FAECB6, #2BBAA5 60%, #123936);
+      box-shadow:
+        inset -5px -4px 0 rgba(18, 57, 54, 0.16),
+        inset 4px 3px 0 rgba(255,255,255,0.55);
+    }
+
+    .fish-tail {
+      position: absolute;
+      left: -8px;
+      top: 3px;
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-right: 12px solid #F9A822;
+    }
+
+    .fish-eye {
+      position: absolute;
+      right: 5px;
+      top: 4px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #123936;
+    }
+
+    .fish-number {
+      position: absolute;
+      right: 3px;
+      top: 4px;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: #F96635;
+      color: white;
+      font-size: 12px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 5px 12px rgba(18,57,54,0.18);
+      transition: opacity 0.16s ease;
+    }
+
+    .contest-badge {
+      position: absolute;
+      left: 4px;
+      top: 0px;
+      font-size: 20px;
+      filter: drop-shadow(0 4px 4px rgba(18,57,54,0.18));
+    }
+
+    .zoom-far .fish-wrap,
+    .zoom-far .fish-number {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @keyframes puddleBreath {
+      0%, 100% { transform: scale(1) rotate(-3deg); opacity: 0.96; }
+      50% { transform: scale(1.07) rotate(2deg); opacity: 0.84; }
+    }
+
+    @keyframes ringPulse {
+      0%, 100% { transform: scale(0.95); opacity: 0.34; }
+      50% { transform: scale(1.12); opacity: 0.12; }
+    }
+
+    @keyframes shineMove {
+      0%, 100% { transform: translateX(0) rotate(-18deg); opacity: 0.62; }
+      50% { transform: translateX(9px) rotate(-18deg); opacity: 0.35; }
+    }
+
+    @keyframes fishFloat {
+      0%, 100% { transform: translateY(0) rotateZ(5deg); }
+      50% { transform: translateY(-8px) rotateZ(-8deg); }
+    }
+
+    .player-marker {
+      width: 58px;
+      height: 64px;
+      position: relative;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .player-bubble {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 50px;
+      height: 50px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: rgba(250, 236, 182, 0.94);
+      border: 3px solid rgba(43, 186, 165, 0.95);
+      box-shadow: 0 12px 24px rgba(18, 57, 54, 0.24);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      animation: playerBob 1.8s ease-in-out infinite;
+    }
+
+    .player-shadow {
+      position: absolute;
+      left: 50%;
+      bottom: 3px;
+      width: 34px;
+      height: 12px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: rgba(18, 57, 54, 0.22);
+      filter: blur(2px);
+    }
+
+    .player-label {
+      position: absolute;
+      left: 50%;
+      top: -16px;
+      transform: translateX(-50%);
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #F96635;
+      color: white;
+      font-size: 10px;
+      font-weight: 900;
+      white-space: nowrap;
+      box-shadow: 0 5px 12px rgba(18,57,54,0.16);
+    }
+
+    @keyframes playerBob {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-5px); }
+    }
+
+    .modal-bg {
+      position: absolute;
+      inset: 0;
+      background: rgba(18, 57, 54, 0.28);
+      z-index: 20;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+
+    .modal {
+      width: min(440px, 100%);
+      max-height: calc(100vh - 36px);
+      overflow: auto;
+      background: #FAECB6;
+      color: #123936;
+      border-radius: 28px;
+      padding: 18px;
+      box-shadow: 0 22px 60px rgba(18, 57, 54, 0.28);
+      border: 3px solid rgba(255,255,255,0.75);
+    }
+
+    .modal h2 {
+      margin: 0 0 10px;
+      font-size: 21px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 800;
+      margin: 12px 0 6px;
+    }
+
+    select, textarea, input[type="file"] {
+      width: 100%;
+      box-sizing: border-box;
+      border: 2px solid rgba(43, 186, 165, 0.35);
+      border-radius: 16px;
+      padding: 10px;
+      font: inherit;
+      background: rgba(255,255,255,0.74);
+      color: #123936;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .data-box {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      width: min(390px, calc(100vw - 32px));
+      max-height: 150px;
+      overflow: auto;
+      background: rgba(255, 255, 255, 0.82);
+      border-radius: 20px;
+      padding: 12px;
+      color: #123936;
+      font-size: 11px;
+      z-index: 10;
+      box-shadow: 0 16px 40px rgba(18, 57, 54, 0.14);
+      white-space: pre-wrap;
+    }
+
+    .popup-photo {
+      width: 170px;
+      max-height: 130px;
+      object-fit: cover;
+      border-radius: 14px;
+      margin-top: 6px;
+    }
+
+    .maplibregl-popup-content {
+      border-radius: 18px;
+      color: #123936;
+      background: #FAECB6;
+      box-shadow: 0 16px 34px rgba(18,57,54,0.18);
+      font-family: inherit;
+      line-height: 1.55;
+    }
+
+    .maplibregl-popup-close-button {
+      font-size: 20px;
+      color: #123936;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="map-tint"></div>
+
+  <div class="panel">
+    <h1>雨あと水族館</h1>
+    <p>
+      「あそぶ」は一人称っぽい近い視点。<br>
+      「マップ」はGeoJSONの水たまりを上から見る視点です。
+    </p>
+
+    <div class="view-tabs">
+      <button id="playViewBtn" class="active">あそぶ</button>
+      <button id="mapViewBtn">マップ</button>
+    </div>
+
+    <button id="clickModeBtn">地図をクリックして投稿</button>
+    <button id="locateBtn" class="orange">現在地を見る</button>
+    <button id="addHereBtn" class="orange">現在地で投稿</button>
+    <button id="clearBtn" class="red">全部消す</button>
+
+    <div class="avatar-row">
+      <span>自分のすがた</span>
+      <select id="playerAvatarInput">
+        <option value="shrimp">🦐 えび</option>
+        <option value="crab">🦀 かに</option>
+        <option value="octopus">🐙 たこ</option>
+      </select>
+    </div>
+
+    <div id="status">地図を読み込み中...</div>
+  </div>
+
+  <div class="data-box" id="dataBox">[]</div>
+
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <h2>水たまりを投稿</h2>
+      <p id="placeText">位置を選択中...</p>
+
+      <label for="sizeInput">大きさ</label>
+      <select id="sizeInput">
+        <option value="small">ちいさい</option>
+        <option value="medium" selected>ふつう</option>
+        <option value="large">でっかい</option>
+      </select>
+
+      <label for="turbidityInput">濁り具合</label>
+      <select id="turbidityInput">
+        <option value="clear">すきとおり</option>
+        <option value="cloudy" selected>ちょいにごり</option>
+        <option value="muddy">どろんこ</option>
+      </select>
+
+      <label for="reviewInput">水たまりレビュー</label>
+      <textarea id="reviewInput" placeholder="例：駅前にできてた。光が反射してきれいで、魚が住めそうだった。"></textarea>
+
+      <label for="photoInput">写真</label>
+      <input id="photoInput" type="file" accept="image/*" />
+
+      <div class="check-row">
+        <input id="contestInput" type="checkbox" />
+        <span>水たまりフォトコンテストに応募する 🏆</span>
+      </div>
+
+      <div class="modal-actions">
+        <button id="cancelPostBtn" class="red">やめる</button>
+        <button id="submitPostBtn">投稿する</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOKUSHIMA = [134.5548, 34.0703];
+    const STORAGE_KEY = "ameato_puddle_posts_v8";
+
+    const statusEl = document.getElementById("status");
+    const dataBox = document.getElementById("dataBox");
+    const playViewBtn = document.getElementById("playViewBtn");
+    const mapViewBtn = document.getElementById("mapViewBtn");
+    const clickModeBtn = document.getElementById("clickModeBtn");
+    const locateBtn = document.getElementById("locateBtn");
+    const addHereBtn = document.getElementById("addHereBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const playerAvatarInput = document.getElementById("playerAvatarInput");
+
+    const modalBg = document.getElementById("modalBg");
+    const placeText = document.getElementById("placeText");
+    const sizeInput = document.getElementById("sizeInput");
+    const turbidityInput = document.getElementById("turbidityInput");
+    const reviewInput = document.getElementById("reviewInput");
+    const photoInput = document.getElementById("photoInput");
+    const contestInput = document.getElementById("contestInput");
+    const cancelPostBtn = document.getElementById("cancelPostBtn");
+    const submitPostBtn = document.getElementById("submitPostBtn");
+
+    let currentView = "play";
+    let clickMode = false;
+    let selectedPoint = null;
+    let playerMarker = null;
+    let lastKnownPosition = null;
+    let puddles = loadPuddles();
+    const markers = [];
+
+    const map = new maplibregl.Map({
+      container: "map",
+      center: TOKUSHIMA,
+      zoom: 18.4,
+      pitch: 45,
+      bearing: -20,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors"
+          }
+        },
+        layers: [
+          {
+            id: "osm",
+            type: "raster",
+            source: "osm",
+            paint: {
+              "raster-opacity": 0.24,
+              "raster-saturation": -0.78,
+              "raster-brightness-min": 0.80,
+              "raster-brightness-max": 1.0
+            }
+          }
+        ]
+      }
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      addGeoJsonLayers();
+
+      if (puddles.length === 0) {
+        addDemoPuddles();
+      } else {
+        renderPuddles();
+        updateGeoJsonLayer();
+      }
+
+      setView("play", false);
+      updateDataBox();
+      statusEl.textContent = "v8読み込み完了。あそぶ / マップを切り替えできます。";
+    });
+
+    map.on("zoom", updateMarkerScale);
+    map.on("move", updateMarkerScale);
+
+    function loadPuddles() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function savePuddles() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(puddles));
+      updateDataBox();
+      updateGeoJsonLayer();
+    }
+
+    function updateDataBox() {
+      dataBox.textContent = JSON.stringify(makePuddleGeoJson(), null, 2);
+    }
+
+    function makePuddleGeoJson() {
+      return {
+        type: "FeatureCollection",
+        features: puddles.map(puddle => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [puddle.longitude, puddle.latitude]
+          },
+          properties: {
+            id: puddle.id,
+            size: puddle.size,
+            turbidity: puddle.turbidity,
+            review: puddle.review,
+            fishCount: puddle.fishCount,
+            contestEntry: puddle.contestEntry,
+            likes: puddle.likes || 0,
+            createdAt: puddle.createdAt
+          }
+        }))
+      };
+    }
+
+    function addGeoJsonLayers() {
+      map.addSource("puddle-geojson", {
+        type: "geojson",
+        data: makePuddleGeoJson()
+      });
+
+      map.addLayer({
+        id: "puddle-map-circles",
+        type: "circle",
+        source: "puddle-geojson",
+        paint: {
+          "circle-radius": [
+            "match",
+            ["get", "size"],
+            "small", 8,
+            "medium", 13,
+            "large", 20,
+            12
+          ],
+          "circle-color": [
+            "match",
+            ["get", "turbidity"],
+            "clear", "#2BBAA5",
+            "cloudy", "#93D3AE",
+            "muddy", "#F9A822",
+            "#2BBAA5"
+          ],
+          "circle-opacity": 0.78,
+          "circle-stroke-color": [
+            "case",
+            ["==", ["get", "contestEntry"], true],
+            "#F96635",
+            "#FAECB6"
+          ],
+          "circle-stroke-width": [
+            "case",
+            ["==", ["get", "contestEntry"], true],
+            4,
+            2
+          ]
+        }
+      });
+
+      map.addLayer({
+        id: "puddle-map-labels",
+        type: "symbol",
+        source: "puddle-geojson",
+        layout: {
+          "text-field": [
+            "concat",
+            ["case", ["==", ["get", "contestEntry"], true], "🏆 ", ""],
+            ["to-string", ["get", "fishCount"]]
+          ],
+          "text-size": 13,
+          "text-font": ["Noto Sans Regular"],
+          "text-offset": [0, 1.25],
+          "text-anchor": "top"
+        },
+        paint: {
+          "text-color": "#123936",
+          "text-halo-color": "#FAECB6",
+          "text-halo-width": 1.6
+        }
+      });
+
+      map.on("click", "puddle-map-circles", (event) => {
+        if (!event.features || !event.features[0]) return;
+
+        const feature = event.features[0];
+        const props = feature.properties;
+        const coords = feature.geometry.coordinates.slice();
+
+        const fakePuddle = {
+          id: props.id,
+          longitude: coords[0],
+          latitude: coords[1],
+          size: props.size,
+          turbidity: props.turbidity,
+          review: props.review,
+          fishCount: props.fishCount,
+          contestEntry: props.contestEntry === true || props.contestEntry === "true",
+          likes: props.likes || 0,
+          createdAt: props.createdAt,
+          photoDataUrl: ""
+        };
+
+        showPuddlePopup(fakePuddle);
+      });
+
+      map.on("mouseenter", "puddle-map-circles", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+
+      map.on("mouseleave", "puddle-map-circles", () => {
+        map.getCanvas().style.cursor = "";
+      });
+    }
+
+    function updateGeoJsonLayer() {
+      const source = map.getSource("puddle-geojson");
+      if (!source) return;
+      source.setData(makePuddleGeoJson());
+    }
+
+    function setLayerVisibility(layerId, visibility) {
+      if (!map.getLayer(layerId)) return;
+      map.setLayoutProperty(layerId, "visibility", visibility);
+    }
+
+    function setView(view, animate = true) {
+      currentView = view;
+
+      playViewBtn.classList.toggle("active", view === "play");
+      mapViewBtn.classList.toggle("active", view === "map");
+
+      if (view === "play") {
+        setLayerVisibility("puddle-map-circles", "none");
+        setLayerVisibility("puddle-map-labels", "none");
+
+        markers.forEach(({ el }) => {
+          el.style.display = "block";
+        });
+
+        const center = lastKnownPosition
+          ? [lastKnownPosition.longitude, lastKnownPosition.latitude]
+          : TOKUSHIMA;
+
+        map.easeTo({
+          center,
+          zoom: 18.8,
+          pitch: 45,
+          bearing: -20,
+          duration: animate ? 700 : 0
+        });
+
+        statusEl.textContent = "あそぶモード：近くの水たまりを探す画面です。";
+      }
+
+      if (view === "map") {
+        setLayerVisibility("puddle-map-circles", "visible");
+        setLayerVisibility("puddle-map-labels", "visible");
+
+        markers.forEach(({ el }) => {
+          el.style.display = "none";
+        });
+
+        map.easeTo({
+          center: TOKUSHIMA,
+          zoom: 15.6,
+          pitch: 0,
+          bearing: 0,
+          duration: animate ? 700 : 0
+        });
+
+        statusEl.textContent = "マップモード：GeoJSONの水たまりを上から見ています。";
+      }
+
+      updateMarkerScale();
+    }
+
+    function getPlayerEmoji() {
+      const value = playerAvatarInput.value;
+      if (value === "crab") return "🦀";
+      if (value === "octopus") return "🐙";
+      return "🦐";
+    }
+
+    function getPlayerName() {
+      const value = playerAvatarInput.value;
+      if (value === "crab") return "かに";
+      if (value === "octopus") return "たこ";
+      return "えび";
+    }
+
+    function updatePlayerMarkerEmoji() {
+      if (!playerMarker) return;
+
+      const el = playerMarker.getElement();
+      const emojiEl = el.querySelector(".player-emoji");
+      const labelEl = el.querySelector(".player-label");
+
+      if (emojiEl) emojiEl.textContent = getPlayerEmoji();
+      if (labelEl) labelEl.textContent = getPlayerName();
+    }
+
+    function showPlayer(longitude, latitude) {
+      lastKnownPosition = { longitude, latitude };
+
+      if (!playerMarker) {
+        const el = document.createElement("div");
+        el.className = "player-marker";
+        el.innerHTML = `
+          <div class="player-label">${getPlayerName()}</div>
+          <div class="player-bubble">
+            <span class="player-emoji">${getPlayerEmoji()}</span>
+          </div>
+          <div class="player-shadow"></div>
+        `;
+
+        el.addEventListener("click", (event) => {
+          event.stopPropagation();
+
+          new maplibregl.Popup({ offset: 30 })
+            .setLngLat([longitude, latitude])
+            .setHTML(`<strong>${getPlayerName()}</strong><br>ここが今いる場所です。`)
+            .addTo(map);
+        });
+
+        playerMarker = new maplibregl.Marker({
+          element: el,
+          anchor: "bottom"
+        })
+          .setLngLat([longitude, latitude])
+          .addTo(map);
+      } else {
+        playerMarker.setLngLat([longitude, latitude]);
+        updatePlayerMarkerEmoji();
+      }
+    }
+
+    function locateUserOnly() {
+      if (!navigator.geolocation) {
+        statusEl.textContent = "このブラウザでは現在地が使えません。";
+        return;
+      }
+
+      statusEl.textContent = "現在地を取得中... 位置情報を許可してください。";
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const longitude = pos.coords.longitude;
+          const latitude = pos.coords.latitude;
+
+          showPlayer(longitude, latitude);
+
+          if (currentView === "play") {
+            map.easeTo({
+              center: [longitude, latitude],
+              zoom: 19,
+              pitch: 45,
+              bearing: -20,
+              duration: 900
+            });
+          } else {
+            map.easeTo({
+              center: [longitude, latitude],
+              zoom: 16.2,
+              pitch: 0,
+              bearing: 0,
+              duration: 900
+            });
+          }
+
+          statusEl.textContent =
+            `${getPlayerName()}として現在地を表示しました。緯度 ${latitude.toFixed(5)} / 経度 ${longitude.toFixed(5)}`;
+        },
+        handleGeoLocationError,
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        }
+      );
+    }
+
+    function handleGeoLocationError(err) {
+      console.warn(err);
+
+      if (err.code === 1) {
+        statusEl.textContent = "位置情報がブロックされています。ブラウザの位置情報を許可してください。";
+      } else if (err.code === 2) {
+        statusEl.textContent = "現在地を特定できませんでした。Wi-Fiや位置情報設定を確認してください。";
+      } else if (err.code === 3) {
+        statusEl.textContent = "現在地取得がタイムアウトしました。もう一度押してみてください。";
+      } else {
+        statusEl.textContent = "現在地を取得できませんでした。";
+      }
+    }
+
+    function sizeToFishCount(size, review) {
+      let base = size === "small" ? 1 : size === "medium" ? 3 : 5;
+      if ((review || "").length > 30) base += 1;
+      return base + Math.floor(Math.random() * 2);
+    }
+
+    function sizeMultiplier(size) {
+      if (size === "small") return 0.72;
+      if (size === "large") return 1.35;
+      return 1;
+    }
+
+    function zoomScale() {
+      const z = map.getZoom();
+
+      if (z < 13) return 0.10;
+      if (z < 14) return 0.14;
+      if (z < 15) return 0.20;
+      if (z < 16) return 0.32;
+      if (z < 17) return 0.48;
+      if (z < 18) return 0.72;
+      if (z < 19) return 1.05;
+      if (z < 20) return 1.35;
+      return 1.65;
+    }
+
+    function fishVisible() {
+      return currentView === "play" && map.getZoom() >= 17.5;
+    }
+
+    function makePuddleElement(puddle) {
+      const el = document.createElement("div");
+      el.className = "puddle-marker";
+
+      el.innerHTML = `
+        <div class="puddle-scale ${puddle.turbidity}">
+          <div class="puddle-ring"></div>
+          <div class="puddle-drop">💧</div>
+          <div class="puddle-blob"></div>
+          <div class="puddle-shine"></div>
+
+          <div class="fish-wrap">
+            <div class="fish-tail"></div>
+            <div class="fish-body"></div>
+            <div class="fish-eye"></div>
+          </div>
+
+          <div class="fish-number">${puddle.fishCount}</div>
+          ${puddle.contestEntry ? '<div class="contest-badge">🏆</div>' : ""}
+        </div>
+      `;
+
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        showPuddlePopup(puddle);
+      });
+
+      return el;
+    }
+
+    function renderPuddles() {
+      markers.forEach(({ marker }) => marker.remove());
+      markers.length = 0;
+
+      puddles.forEach(puddle => {
+        const el = makePuddleElement(puddle);
+
+        const marker = new maplibregl.Marker({
+          element: el,
+          anchor: "center"
+        })
+          .setLngLat([puddle.longitude, puddle.latitude])
+          .addTo(map);
+
+        markers.push({ marker, el, puddle });
+      });
+
+      if (currentView === "map") {
+        markers.forEach(({ el }) => {
+          el.style.display = "none";
+        });
+      }
+
+      updateMarkerScale();
+    }
+
+    function updateMarkerScale() {
+      const base = zoomScale();
+      const showFish = fishVisible();
+
+      markers.forEach(({ el, puddle }) => {
+        const scaleTarget = el.querySelector(".puddle-scale");
+        if (!scaleTarget) return;
+
+        const scale = base * sizeMultiplier(puddle.size);
+        scaleTarget.style.transform = `scale(${scale})`;
+        scaleTarget.classList.toggle("zoom-far", !showFish);
+        scaleTarget.style.opacity = map.getZoom() < 13.5 ? "0.76" : "1";
+      });
+    }
+
+    function labelSize(size) {
+      return size === "small" ? "ちいさい" : size === "large" ? "でっかい" : "ふつう";
+    }
+
+    function labelTurbidity(turbidity) {
+      if (turbidity === "clear") return "すきとおり";
+      if (turbidity === "muddy") return "どろんこ";
+      return "ちょいにごり";
+    }
+
+    function showPuddlePopup(puddle) {
+      const photoHtml = puddle.photoDataUrl
+        ? `<br><img class="popup-photo" src="${puddle.photoDataUrl}" />`
+        : "";
+
+      const popupHtml = `
+        <strong>${puddle.contestEntry ? "🏆 " : ""}水たまり</strong><br>
+        大きさ：${labelSize(puddle.size)}<br>
+        濁り具合：${labelTurbidity(puddle.turbidity)}<br>
+        魚：${puddle.fishCount}匹<br>
+        レビュー：${puddle.review || "なし"}<br>
+        日時：${new Date(puddle.createdAt).toLocaleString()}<br>
+        緯度：${Number(puddle.latitude).toFixed(6)}<br>
+        経度：${Number(puddle.longitude).toFixed(6)}
+        ${photoHtml}
+      `;
+
+      new maplibregl.Popup({ offset: 28 })
+        .setLngLat([puddle.longitude, puddle.latitude])
+        .setHTML(popupHtml)
+        .addTo(map);
+    }
+
+    function openPostForm(longitude, latitude) {
+      selectedPoint = { longitude, latitude };
+
+      placeText.textContent =
+        `投稿位置：緯度 ${latitude.toFixed(6)} / 経度 ${longitude.toFixed(6)}`;
+
+      sizeInput.value = "medium";
+      turbidityInput.value = "cloudy";
+      reviewInput.value = "";
+      photoInput.value = "";
+      contestInput.checked = false;
+
+      modalBg.style.display = "flex";
+    }
+
+    function closePostForm() {
+      modalBg.style.display = "none";
+      selectedPoint = null;
+    }
+
+    function readPhotoAsDataUrl(file) {
+      return new Promise((resolve) => {
+        if (!file) {
+          resolve("");
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve("");
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function submitPost() {
+      if (!selectedPoint) return;
+
+      const size = sizeInput.value;
+      const turbidity = turbidityInput.value;
+      const review = reviewInput.value.trim();
+      const contestEntry = contestInput.checked;
+      const photoFile = photoInput.files[0];
+      const photoDataUrl = await readPhotoAsDataUrl(photoFile);
+
+      const puddle = {
+        id: "puddle_" + Date.now(),
+        longitude: selectedPoint.longitude,
+        latitude: selectedPoint.latitude,
+        createdAt: new Date().toISOString(),
+        size,
+        turbidity,
+        review,
+        photoDataUrl,
+        contestEntry,
+        fishCount: sizeToFishCount(size, review),
+        likes: 0
+      };
+
+      puddles.push(puddle);
+      savePuddles();
+      renderPuddles();
+      closePostForm();
+
+      if (currentView === "play") {
+        map.easeTo({
+          center: [puddle.longitude, puddle.latitude],
+          zoom: 19,
+          pitch: 45,
+          bearing: -20,
+          duration: 900
+        });
+      } else {
+        map.easeTo({
+          center: [puddle.longitude, puddle.latitude],
+          zoom: 16.4,
+          pitch: 0,
+          bearing: 0,
+          duration: 900
+        });
+      }
+
+      statusEl.textContent =
+        contestEntry
+          ? "水たまりを投稿しました。フォトコンにも応募しました 🏆"
+          : "水たまりを投稿しました。";
+    }
+
+    function locateUserAndOpenForm() {
+      if (!navigator.geolocation) {
+        statusEl.textContent = "このブラウザでは現在地が使えません。";
+        return;
+      }
+
+      statusEl.textContent = "現在地を取得中... 位置情報を許可してください。";
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const longitude = pos.coords.longitude;
+          const latitude = pos.coords.latitude;
+
+          showPlayer(longitude, latitude);
+
+          if (currentView === "play") {
+            map.easeTo({
+              center: [longitude, latitude],
+              zoom: 19,
+              pitch: 45,
+              bearing: -20,
+              duration: 900
+            });
+          } else {
+            map.easeTo({
+              center: [longitude, latitude],
+              zoom: 16.4,
+              pitch: 0,
+              bearing: 0,
+              duration: 900
+            });
+          }
+
+          openPostForm(longitude, latitude);
+        },
+        handleGeoLocationError,
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        }
+      );
+    }
+
+    function addDemoPuddles() {
+      puddles = [
+        {
+          id: "demo_1",
+          longitude: 134.5546,
+          latitude: 34.0701,
+          createdAt: new Date().toISOString(),
+          size: "medium",
+          turbidity: "clear",
+          review: "駅前にできてた。光が反射してきれい。",
+          photoDataUrl: "",
+          contestEntry: true,
+          fishCount: 4,
+          likes: 0
+        },
+        {
+          id: "demo_2",
+          longitude: 134.5528,
+          latitude: 34.0712,
+          createdAt: new Date().toISOString(),
+          size: "small",
+          turbidity: "muddy",
+          review: "ちょっとどろんこ。泥好き魚がいそう。",
+          photoDataUrl: "",
+          contestEntry: false,
+          fishCount: 2,
+          likes: 0
+        },
+        {
+          id: "demo_3",
+          longitude: 134.5571,
+          latitude: 34.0695,
+          createdAt: new Date().toISOString(),
+          size: "large",
+          turbidity: "cloudy",
+          review: "大きめ。魚がたくさんいそうな水たまり。",
+          photoDataUrl: "",
+          contestEntry: false,
+          fishCount: 6,
+          likes: 0
+        }
+      ];
+
+      savePuddles();
+      renderPuddles();
+      updateGeoJsonLayer();
+
+      map.easeTo({
+        center: [134.5546, 34.0701],
+        zoom: 18.8,
+        pitch: 45,
+        bearing: -20,
+        duration: 900
+      });
+    }
+
+    playViewBtn.addEventListener("click", () => {
+      setView("play", true);
+    });
+
+    mapViewBtn.addEventListener("click", () => {
+      setView("map", true);
+    });
+
+    clickModeBtn.addEventListener("click", () => {
+      clickMode = !clickMode;
+      clickModeBtn.textContent = clickMode ? "クリック投稿モード中" : "地図をクリックして投稿";
+      statusEl.textContent = clickMode
+        ? "地図をクリックすると投稿フォームが開きます。"
+        : "クリック投稿モードを解除しました。";
+    });
+
+    map.on("click", (event) => {
+      if (!clickMode) return;
+      openPostForm(event.lngLat.lng, event.lngLat.lat);
+    });
+
+    locateBtn.addEventListener("click", locateUserOnly);
+    addHereBtn.addEventListener("click", locateUserAndOpenForm);
+    cancelPostBtn.addEventListener("click", closePostForm);
+    submitPostBtn.addEventListener("click", submitPost);
+
+    playerAvatarInput.addEventListener("change", () => {
+      updatePlayerMarkerEmoji();
+      statusEl.textContent = `自分のすがたを${getPlayerName()}にしました。`;
+    });
+
+    modalBg.addEventListener("click", (event) => {
+      if (event.target === modalBg) {
+        closePostForm();
+      }
+    });
+
+    clearBtn.addEventListener("click", () => {
+      const ok = confirm("保存した水たまり投稿を全部消しますか？");
+      if (!ok) return;
+
+      puddles = [];
+      savePuddles();
+      renderPuddles();
+      updateGeoJsonLayer();
+      statusEl.textContent = "水たまり投稿を全部消しました。";
+    });
+  </script>
+</body>
+</html>
