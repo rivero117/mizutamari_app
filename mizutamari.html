@@ -754,10 +754,10 @@
         .map((feature, index) => {
           const [longitude, latitude] = feature.geometry.coordinates;
           const props = feature.properties || {};
-
-          const diameterCm = parseDiameterCm(props["直径"]);
+          
+          const diameterCm = Number(diameterInput.value || 120);
           const size = diameterToSize(diameterCm);
-          const turbidity = muddinessToTurbidity(props["濁り具合"]);
+          const turbidity = turbidityInput.value;
 
           return {
             id: "geojson_puddle_" + (props["No"] || index + 1),
@@ -1307,6 +1307,7 @@
         latitude: selectedPoint.latitude,
         createdAt: new Date().toISOString(),
         size,
+        diameterCm,
         turbidity,
         review,
         photoDataUrl,
@@ -1314,7 +1315,6 @@
         fishCount: sizeToFishCount(size, review),
         likes: 0,
 
-        diameterCm: "",
         depth: "",
         traffic: "",
         handWash: "",
