@@ -545,7 +545,7 @@
   </div>
 
   <script>
-    const GEOJSON_URL = "./data/puddles.geojson";
+    const GEOJSON_URL = "./data/mizutamari.geojson";
     const START_CENTER = [134.3612, 33.9742];
     const STORAGE_KEY = "ameato_user_puddle_posts_v9";
 
@@ -908,7 +908,7 @@
           duration: animate ? 700 : 0
         });
 
-        statusEl.textContent = "あそぶモード：近い視点で水たまりを探します。";
+        statusEl.textContent = "街をみるモード：近い視点で水たまりを探します。";
       }
 
       if (view === "map") {
@@ -926,7 +926,7 @@
           duration: animate ? 700 : 0
         });
 
-        statusEl.textContent = "マップモード：GeoJSONの水たまりを上から見ています。";
+        statusEl.textContent = "上からみるモード：GeoJSONの水たまりを上から見ています。";
       }
 
       updateMarkerScale();
@@ -1158,7 +1158,7 @@
 
     function labelTurbidity(turbidity) {
       if (turbidity === "clear") return "すきとおり";
-      if (turbidity === "muddy") return "どろんこ";
+      if (turbidity === "muddy") return "にごり";
       return "ちょいにごり";
     }
 
