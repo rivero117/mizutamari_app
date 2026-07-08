@@ -43,6 +43,27 @@
     : "クリック投稿モードを解除しました。";
 });
 
+      .diameter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diameter-row input {
+  flex: 1;
+  box-sizing: border-box;
+  border: 2px solid rgba(43, 186, 165, 0.35);
+  border-radius: 16px;
+  padding: 10px;
+  font: inherit;
+  background: rgba(255,255,255,0.74);
+  color: #123936;
+}
+
+.diameter-row span {
+  font-weight: 900;
+}
+
     .map-tint {
   position: absolute;
   inset: 0;
@@ -537,12 +558,11 @@
       <h2>水たまりを投稿</h2>
       <p id="placeText">位置を選択中...</p>
 
-      <label for="sizeInput">大きさ</label>
-      <select id="sizeInput">
-        <option value="small">ちいさい</option>
-        <option value="medium" selected>ふつう</option>
-        <option value="large">でっかい</option>
-      </select>
+      <label for="diameterInput">直径</label>
+      <div class="diameter-row">
+      <input id="diameterInput" type="number" min="1" max="1000" value="120" />
+      <span>cm</span>
+      </div>
 
       <label for="turbidityInput">濁り具合</label>
       <select id="turbidityInput">
