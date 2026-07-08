@@ -25,6 +25,23 @@
   body.click-posting .maplibregl-canvas {
     cursor: crosshair !important;
   }
+    clickModeBtn.addEventListener("click", () => {
+  clickMode = !clickMode;
+
+  document.body.classList.toggle("click-posting", clickMode);
+
+  if (clickMode) {
+    map.getCanvas().style.cursor = "crosshair";
+  } else {
+    map.getCanvas().style.cursor = "";
+  }
+
+  clickModeBtn.textContent = clickMode ? "クリック投稿モード中" : "地図をクリックして投稿";
+
+  statusEl.textContent = clickMode
+    ? "十字カーソルの先に水たまりを登録します。地図をクリックしてください。"
+    : "クリック投稿モードを解除しました。";
+});
 
     .map-tint {
   position: absolute;
