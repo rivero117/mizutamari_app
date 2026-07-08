@@ -36,7 +36,7 @@
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
 
-    fetch("mizutamari.geojson")
+    fetch("data/mizutamari.geojson")
       .then(response => response.json())
       .then(data => {
         L.geoJSON(data, {
