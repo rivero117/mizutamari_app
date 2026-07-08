@@ -606,7 +606,7 @@
 
     const modalBg = document.getElementById("modalBg");
     const placeText = document.getElementById("placeText");
-    const sizeInput = document.getElementById("sizeInput");
+    const diameterInput = document.getElementById("diameterInput");
     const turbidityInput = document.getElementById("turbidityInput");
     const reviewInput = document.getElementById("reviewInput");
     const photoInput = document.getElementById("photoInput");
@@ -1253,7 +1253,7 @@
       placeText.textContent =
         `投稿位置：緯度 ${latitude.toFixed(6)} / 経度 ${longitude.toFixed(6)}`;
 
-      sizeInput.value = "medium";
+      diameterInput.value = "medium";
       turbidityInput.value = "cloudy";
       reviewInput.value = "";
       photoInput.value = "";
@@ -1284,7 +1284,7 @@
     async function submitPost() {
       if (!selectedPoint) return;
 
-      const size = sizeInput.value;
+      const size = diameterInput.value;
       const turbidity = turbidityInput.value;
       const review = reviewInput.value.trim();
       const contestEntry = contestInput.checked;
