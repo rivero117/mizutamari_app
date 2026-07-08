@@ -1108,6 +1108,16 @@
       return 1;
     }
 
+    function diameterToScale(diameterCm) {
+  const diameter = Number(diameterCm || 120);
+
+  // 120cmを基準サイズにする
+  const scale = Math.sqrt(diameter / 120);
+
+  // 小さすぎ・大きすぎ防止
+  return Math.min(Math.max(scale, 0.55), 2.2);
+}
+
     function zoomScale() {
       const z = map.getZoom();
 
@@ -1190,7 +1200,7 @@
         const scaleTarget = el.querySelector(".puddle-scale");
         if (!scaleTarget) return;
 
-        const scale = base * sizeMultiplier(puddle.size);
+        const scale = base * diameterToScale(puddle.diameterCm);
         scaleTarget.style.transform = `scale(${scale})`;
         scaleTarget.classList.toggle("zoom-far", !showFish);
         scaleTarget.style.opacity = map.getZoom() < 13.5 ? "0.76" : "1";
