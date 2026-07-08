@@ -1291,36 +1291,72 @@
     }
 
     async function submitPost() {
-      if (!selectedPoint) return;
+  if (!selectedPoint) {
+    statusEl.textContent = "投稿する場所が選ばれていません。地図をクリックするか、現在地で投稿してください。";
+    return;
+  }
 
-      const size = diameterInput.value;
-      const turbidity = turbidityInput.value;
-      const review = reviewInput.value.trim();
-      const contestEntry = contestInput.checked;
-      const photoFile = photoInput.files[0];
-      const photoDataUrl = await readPhotoAsDataUrl(photoFile);
+  const diameterCm = Number(diameterInput.value || 120);
+  const size = diameterToSize(diameterCm);
+  const turbidity = turbidityInput.value;
+  const review = reviewInput.value.trim();
+  const contestEntry = contestInput.checked;
+  const photoFile = photoInput.files[0];
+  const photoDataUrl = await readPhotoAsDataUrl(photoFile);
 
-      const puddle = {
-        id: "user_puddle_" + Date.now(),
-        source: "user",
-        longitude: selectedPoint.longitude,
-        latitude: selectedPoint.latitude,
-        createdAt: new Date().toISOString(),
-        size,
-        diameterCm,
-        turbidity,
-        review,
-        photoDataUrl,
-        contestEntry,
-        fishCount: sizeToFishCount(size, review),
-        likes: 0,
+  const puddle = {
+    id: "user_puddle_" + Date.now(),
+    source: "user",
+    longitude: selectedPoint.longitude,
+    latitude: selectedPoint.latitude,
+    createdAt: new Date().toISOString(),
 
-        depth: "",
-        traffic: "",
-        handWash: "",
-        weather: "",
-        note: ""
-      };
+    size,
+    diameterCm,
+    turbidity,
+    review,
+    photoDataUrl,
+    contestEntry,
+    fishCount: sizeToFishCount(size, review),
+    likes: 0,
+
+    depth: "",
+    traffic: "",
+    handWash: "",
+    weather: "",
+    note: ""
+  };
+
+  userPuddles.push(puddle);
+  saveUserPuddles();
+
+  renderPuddles();
+  updateGeoJsonLayer();
+  closePostForm();
+
+  if (currentView === "play") {
+    map.easeTo({
+      center: [puddle.longitude, puddle.latitude],
+      zoom: 19,
+      pitch: 58,
+      bearing: -28,
+      duration: 900
+    });
+  } else {
+    map.easeTo({
+      center: [puddle.longitude, puddle.latitude],
+      zoom: 16.6,
+      pitch: 0,
+      bearing: 0,
+      duration: 900
+    });
+  }
+
+  statusEl.textContent =
+    contestEntry
+      ? `直径${diameterCm}cmの水たまりを投稿しました。フォトコンにも応募しました 🏆`
+      : `直径${diameterCm}cmの水たまりを投稿しました。`;
+}
 
       userPuddles.push(puddle);
       saveUserPuddles();
