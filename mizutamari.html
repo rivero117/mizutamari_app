@@ -5,8 +5,8 @@
   <title>雨あと水族館</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
 
   <style>
     html, body, #map {
@@ -18,64 +18,23 @@
       background: #FAECB6;
     }
 
-    body.click-posting #map {
-    cursor: crosshair;
-  }
-
-  body.click-posting .maplibregl-canvas {
-    cursor: crosshair !important;
-  }
-    clickModeBtn.addEventListener("click", () => {
-  clickMode = !clickMode;
-
-  document.body.classList.toggle("click-posting", clickMode);
-
-  if (clickMode) {
-    map.getCanvas().style.cursor = "crosshair";
-  } else {
-    map.getCanvas().style.cursor = "";
-  }
-
-  clickModeBtn.textContent = clickMode ? "クリック投稿モード中" : "地図をクリックして投稿";
-
-  statusEl.textContent = clickMode
-    ? "十字カーソルの先に水たまりを登録します。地図をクリックしてください。"
-    : "クリック投稿モードを解除しました。";
-});
-
-      .diameter-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.diameter-row input {
-  flex: 1;
-  box-sizing: border-box;
-  border: 2px solid rgba(43, 186, 165, 0.35);
-  border-radius: 16px;
-  padding: 10px;
-  font: inherit;
-  background: rgba(255,255,255,0.74);
-  color: #123936;
-}
-
-.diameter-row span {
-  font-weight: 900;
-}
+    body.click-posting #map,
+    body.click-posting .maplibregl-canvas {
+      cursor: crosshair !important;
+    }
 
     .map-tint {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    rgba(250, 236, 182, 0.04),
-    rgba(195, 231, 241, 0.03)
-  );
-  mix-blend-mode: multiply;
-  z-index: 2;
-}
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        rgba(250, 236, 182, 0.04),
+        rgba(195, 231, 241, 0.03)
+      );
+      mix-blend-mode: multiply;
+      z-index: 2;
+    }
 
     .panel {
       position: absolute;
@@ -443,7 +402,7 @@
       margin: 12px 0 6px;
     }
 
-    select, textarea, input[type="file"] {
+    select, textarea, input[type="file"], input[type="number"] {
       width: 100%;
       box-sizing: border-box;
       border: 2px solid rgba(43, 186, 165, 0.35);
@@ -457,6 +416,20 @@
     textarea {
       min-height: 90px;
       resize: vertical;
+    }
+
+    .diameter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .diameter-row input {
+      flex: 1;
+    }
+
+    .diameter-row span {
+      font-weight: 900;
     }
 
     .check-row {
@@ -560,15 +533,15 @@
 
       <label for="diameterInput">直径</label>
       <div class="diameter-row">
-      <input id="diameterInput" type="number" min="1" max="1000" value="120" />
-      <span>cm</span>
+        <input id="diameterInput" type="number" min="1" max="1000" value="120" />
+        <span>cm</span>
       </div>
 
       <label for="turbidityInput">濁り具合</label>
       <select id="turbidityInput">
         <option value="clear">すきとおり</option>
         <option value="cloudy" selected>ちょいにごり</option>
-        <option value="muddy">どろんこ</option>
+        <option value="muddy">にごり</option>
       </select>
 
       <label for="reviewInput">水たまりレビュー</label>
@@ -592,7 +565,7 @@
   <script>
     const GEOJSON_URL = "./data/mizutamari.geojson";
     const START_CENTER = [134.3612, 33.9742];
-    const STORAGE_KEY = "ameato_user_puddle_posts_v9";
+    const STORAGE_KEY = "ameato_user_puddle_posts_v10";
 
     const statusEl = document.getElementById("status");
     const dataBox = document.getElementById("dataBox");
@@ -674,11 +647,9 @@
       updateDataBox();
 
       if (officialPuddles.length > 0) {
-        statusEl.textContent =
-          `GeoJSONから${officialPuddles.length}個の水たまりを読み込みました。`;
+        statusEl.textContent = `GeoJSONから${officialPuddles.length}個の水たまりを読み込みました。`;
       } else {
-        statusEl.textContent =
-          "GeoJSONを読み込めませんでした。data/puddles.geojson の場所を確認してください。";
+        statusEl.textContent = "GeoJSONを読み込めませんでした。data/mizutamari.geojson の場所を確認してください。";
       }
     });
 
@@ -731,8 +702,10 @@
     }
 
     function diameterToSize(diameterCm) {
-      if (diameterCm < 150) return "small";
-      if (diameterCm < 300) return "medium";
+      const n = Number(diameterCm || 120);
+
+      if (n < 150) return "small";
+      if (n < 300) return "medium";
       return "large";
     }
 
@@ -754,10 +727,10 @@
         .map((feature, index) => {
           const [longitude, latitude] = feature.geometry.coordinates;
           const props = feature.properties || {};
-          
-          const diameterCm = Number(diameterInput.value || 120);
+
+          const diameterCm = parseDiameterCm(props["直径"]);
           const size = diameterToSize(diameterCm);
-          const turbidity = turbidityInput.value;
+          const turbidity = muddinessToTurbidity(props["濁り具合"]);
 
           return {
             id: "geojson_puddle_" + (props["No"] || index + 1),
@@ -766,14 +739,13 @@
             latitude,
             createdAt: props["観測日時"] || "",
             size,
+            diameterCm,
             turbidity,
             review: props["水たまりのレビュー"] || "",
             photoDataUrl: props["画像"] || "",
             contestEntry: false,
             fishCount: size === "small" ? 1 : size === "medium" ? 3 : 5,
             likes: 0,
-
-            diameterCm,
             depth: props["水深"] || "",
             traffic: props["周囲の交通量"] || "",
             handWash: props["近くの手洗い場の有無"] || "",
@@ -833,12 +805,14 @@
         source: "puddle-geojson",
         paint: {
           "circle-radius": [
-            "match",
-            ["get", "size"],
-            "small", 7,
-            "medium", 11,
-            "large", 17,
-            10
+            "interpolate",
+            ["linear"],
+            ["to-number", ["get", "diameterCm"]],
+            50, 5,
+            120, 8,
+            240, 12,
+            420, 18,
+            600, 24
           ],
           "circle-color": [
             "match",
@@ -876,12 +850,12 @@
           longitude: coords[0],
           latitude: coords[1],
           size: props.size,
+          diameterCm: props.diameterCm || "",
           turbidity: props.turbidity,
           review: props.review,
           fishCount: Number(props.fishCount || 3),
           contestEntry: props.contestEntry === true || props.contestEntry === "true",
           createdAt: props.observedAt || "",
-          diameterCm: props.diameterCm || "",
           traffic: props.traffic || "",
           handWash: props.handWash || "",
           weather: props.weather || "",
@@ -898,7 +872,11 @@
       });
 
       map.on("mouseleave", "puddle-map-circles", () => {
-        map.getCanvas().style.cursor = "";
+        if (clickMode) {
+          map.getCanvas().style.cursor = "crosshair";
+        } else {
+          map.getCanvas().style.cursor = "";
+        }
       });
     }
 
@@ -946,12 +924,12 @@
         });
 
         map.easeTo({
-        center,
-        zoom: 19.1,
-        pitch: 58,
-        bearing: -28,
-        duration: animate ? 700 : 0
-      });
+          center,
+          zoom: 19.1,
+          pitch: 58,
+          bearing: -28,
+          duration: animate ? 700 : 0
+        });
 
         statusEl.textContent = "街をみるモード：近い視点で水たまりを探します。";
       }
@@ -1055,9 +1033,9 @@
           if (currentView === "play") {
             map.easeTo({
               center: [longitude, latitude],
-              zoom: 19,
-              pitch: 45,
-              bearing: -20,
+              zoom: 19.1,
+              pitch: 58,
+              bearing: -28,
               duration: 900
             });
           } else {
@@ -1102,21 +1080,11 @@
       return base + Math.floor(Math.random() * 2);
     }
 
-    function sizeMultiplier(size) {
-      if (size === "small") return 0.70;
-      if (size === "large") return 1.30;
-      return 1;
-    }
-
     function diameterToScale(diameterCm) {
-  const diameter = Number(diameterCm || 120);
-
-  // 120cmを基準サイズにする
-  const scale = Math.sqrt(diameter / 120);
-
-  // 小さすぎ・大きすぎ防止
-  return Math.min(Math.max(scale, 0.55), 2.2);
-}
+      const diameter = Number(diameterCm || 120);
+      const scale = Math.sqrt(diameter / 120);
+      return Math.min(Math.max(scale, 0.55), 2.2);
+    }
 
     function zoomScale() {
       const z = map.getZoom();
@@ -1207,10 +1175,6 @@
       });
     }
 
-    function labelSize(size) {
-      return size === "small" ? "ちいさい" : size === "large" ? "でっかい" : "ふつう";
-    }
-
     function labelTurbidity(turbidity) {
       if (turbidity === "clear") return "すきとおり";
       if (turbidity === "muddy") return "にごり";
@@ -1262,7 +1226,7 @@
       placeText.textContent =
         `投稿位置：緯度 ${latitude.toFixed(6)} / 経度 ${longitude.toFixed(6)}`;
 
-      diameterInput.value = "medium";
+      diameterInput.value = 120;
       turbidityInput.value = "cloudy";
       reviewInput.value = "";
       photoInput.value = "";
@@ -1291,72 +1255,39 @@
     }
 
     async function submitPost() {
-  if (!selectedPoint) {
-    statusEl.textContent = "投稿する場所が選ばれていません。地図をクリックするか、現在地で投稿してください。";
-    return;
-  }
+      if (!selectedPoint) {
+        statusEl.textContent = "投稿する場所が選ばれていません。地図をクリックするか、現在地で投稿してください。";
+        return;
+      }
 
-  const diameterCm = Number(diameterInput.value || 120);
-  const size = diameterToSize(diameterCm);
-  const turbidity = turbidityInput.value;
-  const review = reviewInput.value.trim();
-  const contestEntry = contestInput.checked;
-  const photoFile = photoInput.files[0];
-  const photoDataUrl = await readPhotoAsDataUrl(photoFile);
+      const diameterCm = Number(diameterInput.value || 120);
+      const size = diameterToSize(diameterCm);
+      const turbidity = turbidityInput.value;
+      const review = reviewInput.value.trim();
+      const contestEntry = contestInput.checked;
+      const photoFile = photoInput.files[0];
+      const photoDataUrl = await readPhotoAsDataUrl(photoFile);
 
-  const puddle = {
-    id: "user_puddle_" + Date.now(),
-    source: "user",
-    longitude: selectedPoint.longitude,
-    latitude: selectedPoint.latitude,
-    createdAt: new Date().toISOString(),
-
-    size,
-    diameterCm,
-    turbidity,
-    review,
-    photoDataUrl,
-    contestEntry,
-    fishCount: sizeToFishCount(size, review),
-    likes: 0,
-
-    depth: "",
-    traffic: "",
-    handWash: "",
-    weather: "",
-    note: ""
-  };
-
-  userPuddles.push(puddle);
-  saveUserPuddles();
-
-  renderPuddles();
-  updateGeoJsonLayer();
-  closePostForm();
-
-  if (currentView === "play") {
-    map.easeTo({
-      center: [puddle.longitude, puddle.latitude],
-      zoom: 19,
-      pitch: 58,
-      bearing: -28,
-      duration: 900
-    });
-  } else {
-    map.easeTo({
-      center: [puddle.longitude, puddle.latitude],
-      zoom: 16.6,
-      pitch: 0,
-      bearing: 0,
-      duration: 900
-    });
-  }
-
-  statusEl.textContent =
-    contestEntry
-      ? `直径${diameterCm}cmの水たまりを投稿しました。フォトコンにも応募しました 🏆`
-      : `直径${diameterCm}cmの水たまりを投稿しました。`;
-}
+      const puddle = {
+        id: "user_puddle_" + Date.now(),
+        source: "user",
+        longitude: selectedPoint.longitude,
+        latitude: selectedPoint.latitude,
+        createdAt: new Date().toISOString(),
+        size,
+        diameterCm,
+        turbidity,
+        review,
+        photoDataUrl,
+        contestEntry,
+        fishCount: sizeToFishCount(size, review),
+        likes: 0,
+        depth: "",
+        traffic: "",
+        handWash: "",
+        weather: "",
+        note: ""
+      };
 
       userPuddles.push(puddle);
       saveUserPuddles();
@@ -1368,9 +1299,9 @@
       if (currentView === "play") {
         map.easeTo({
           center: [puddle.longitude, puddle.latitude],
-          zoom: 19,
-          pitch: 45,
-          bearing: -20,
+          zoom: 19.1,
+          pitch: 58,
+          bearing: -28,
           duration: 900
         });
       } else {
@@ -1385,8 +1316,8 @@
 
       statusEl.textContent =
         contestEntry
-          ? "自分の水たまりを投稿しました。フォトコンにも応募しました 🏆"
-          : "自分の水たまりを投稿しました。";
+          ? `直径${diameterCm}cmの水たまりを投稿しました。フォトコンにも応募しました 🏆`
+          : `直径${diameterCm}cmの水たまりを投稿しました。`;
     }
 
     function locateUserAndOpenForm() {
@@ -1407,9 +1338,9 @@
           if (currentView === "play") {
             map.easeTo({
               center: [longitude, latitude],
-              zoom: 19,
-              pitch: 45,
-              bearing: -20,
+              zoom: 19.1,
+              pitch: 58,
+              bearing: -28,
               duration: 900
             });
           } else {
@@ -1443,9 +1374,19 @@
 
     clickModeBtn.addEventListener("click", () => {
       clickMode = !clickMode;
+
+      document.body.classList.toggle("click-posting", clickMode);
+
+      if (clickMode) {
+        map.getCanvas().style.cursor = "crosshair";
+      } else {
+        map.getCanvas().style.cursor = "";
+      }
+
       clickModeBtn.textContent = clickMode ? "クリック投稿モード中" : "地図をクリックして投稿";
+
       statusEl.textContent = clickMode
-        ? "地図をクリックすると投稿フォームが開きます。"
+        ? "十字カーソルの先に水たまりを登録します。地図をクリックしてください。"
         : "クリック投稿モードを解除しました。";
     });
 
