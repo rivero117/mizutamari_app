@@ -1,0 +1,251 @@
+"use strict";
+
+const http = require("http");
+const fs = require("fs/promises");
+const path = require("path");
+const { URL } = require("url");
+
+const ROOT_DIR = path.resolve(__dirname, "..");
+const FRONTEND_DIR = path.join(ROOT_DIR, "frontend");
+const DATA_DIR = path.join(ROOT_DIR, "data");
+const OFFICIAL_GEOJSON_PATH = path.join(DATA_DIR, "mizutamari.geojson");
+const USER_PUDDLES_PATH = path.join(DATA_DIR, "user-puddles.json");
+const PORT = Number(process.env.PORT || 3000);
+
+const MIME_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".geojson": "application/geo+json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml; charset=utf-8"
+};
+
+function sendJson(res, statusCode, payload) {
+  const body = JSON.stringify(payload, null, 2);
+  res.writeHead(statusCode, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store"
+  });
+  res.end(body);
+}
+
+function sendText(res, statusCode, message) {
+  res.writeHead(statusCode, { "content-type": "text/plain; charset=utf-8" });
+  res.end(message);
+}
+
+async function readJsonFile(filePath, fallback) {
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return fallback;
+    throw error;
+  }
+}
+
+async function writeJsonFile(filePath, payload) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function parseDiameterCm(value) {
+  if (value === null || value === undefined) return 120;
+  const match = String(value).match(/\d+(\.\d+)?/);
+  return match ? Number(match[0]) : 120;
+}
+
+function diameterToSize(diameterCm) {
+  const n = Number(diameterCm || 120);
+  if (n < 150) return "small";
+  if (n < 300) return "medium";
+  return "large";
+}
+
+function muddinessToTurbidity(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "cloudy";
+  if (n <= 3) return "clear";
+  if (n <= 6) return "cloudy";
+  return "muddy";
+}
+
+function officialFeatureToPuddle(feature, index) {
+  const [longitude, latitude] = feature.geometry.coordinates;
+  const props = feature.properties || {};
+  const diameterCm = parseDiameterCm(props["直径"]);
+  const size = diameterToSize(diameterCm);
+
+  return {
+    id: `geojson_puddle_${props["No"] || index + 1}`,
+    source: "geojson",
+    longitude,
+    latitude,
+    createdAt: props["観測日時"] || "",
+    diameterCm,
+    size,
+    turbidity: muddinessToTurbidity(props["濁り具合"]),
+    review: props["水たまりのレビュー"] || "",
+    photoDataUrl: props["画像"] || "",
+    contestEntry: false,
+    fishCount: size === "small" ? 1 : size === "medium" ? 3 : 5,
+    likes: 0,
+    depth: props["水深"] || "",
+    traffic: props["周囲の交通量"] || "",
+    handWash: props["近くの手洗い場の有無"] || "",
+    weather: props["天気予報"] || "",
+    note: props["備考"] || ""
+  };
+}
+
+async function loadOfficialPuddles() {
+  const geojson = await readJsonFile(OFFICIAL_GEOJSON_PATH, {
+    type: "FeatureCollection",
+    features: []
+  });
+
+  return geojson.features
+    .filter((feature) => feature.geometry && feature.geometry.type === "Point")
+    .map(officialFeatureToPuddle);
+}
+
+async function loadUserPuddles() {
+  return readJsonFile(USER_PUDDLES_PATH, []);
+}
+
+function sanitizeUserPuddle(input) {
+  const longitude = Number(input.longitude);
+  const latitude = Number(input.latitude);
+  const diameterCm = Number(input.diameterCm || 120);
+
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    const error = new Error("longitude and latitude are required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const size = diameterToSize(diameterCm);
+  return {
+    id: `user_puddle_${Date.now()}`,
+    source: "user",
+    longitude,
+    latitude,
+    createdAt: new Date().toISOString(),
+    diameterCm,
+    size,
+    turbidity: ["clear", "cloudy", "muddy"].includes(input.turbidity)
+      ? input.turbidity
+      : "cloudy",
+    review: String(input.review || "").slice(0, 500),
+    photoDataUrl: String(input.photoDataUrl || ""),
+    contestEntry: Boolean(input.contestEntry),
+    fishCount: Number(input.fishCount || (size === "small" ? 1 : size === "medium" ? 3 : 5)),
+    likes: 0,
+    depth: "",
+    traffic: "",
+    handWash: "",
+    weather: "",
+    note: ""
+  };
+}
+
+async function readRequestJson(req) {
+  const chunks = [];
+  let total = 0;
+
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > 8 * 1024 * 1024) {
+      const error = new Error("request body is too large");
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+
+  const body = Buffer.concat(chunks).toString("utf8");
+  return body ? JSON.parse(body) : {};
+}
+
+async function handleApi(req, res, pathname) {
+  if (req.method === "GET" && pathname === "/api/health") {
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/puddles") {
+    const [official, user] = await Promise.all([loadOfficialPuddles(), loadUserPuddles()]);
+    sendJson(res, 200, { puddles: [...official, ...user] });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/puddles") {
+    const input = await readRequestJson(req);
+    const puddle = sanitizeUserPuddle(input);
+    const userPuddles = await loadUserPuddles();
+    userPuddles.push(puddle);
+    await writeJsonFile(USER_PUDDLES_PATH, userPuddles);
+    sendJson(res, 201, { puddle });
+    return;
+  }
+
+  if (req.method === "DELETE" && pathname === "/api/puddles/user") {
+    await writeJsonFile(USER_PUDDLES_PATH, []);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  sendJson(res, 404, { error: "API route not found" });
+}
+
+async function serveStatic(req, res, pathname) {
+  const requestPath = pathname === "/" ? "/index.html" : pathname;
+  const servesData = requestPath.startsWith("/data/");
+  const baseDir = servesData ? DATA_DIR : FRONTEND_DIR;
+  const relativePath = servesData ? requestPath.replace(/^\/data/, "") : requestPath;
+  const filePath = path.resolve(baseDir, `.${decodeURIComponent(relativePath)}`);
+
+  if (!filePath.startsWith(baseDir)) {
+    sendText(res, 403, "Forbidden");
+    return;
+  }
+
+  try {
+    const file = await fs.readFile(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    res.writeHead(200, {
+      "content-type": MIME_TYPES[ext] || "application/octet-stream",
+      "cache-control": "no-store"
+    });
+    res.end(file);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      sendText(res, 404, "Not found");
+      return;
+    }
+    throw error;
+  }
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+
+    if (url.pathname.startsWith("/api/")) {
+      await handleApi(req, res, url.pathname);
+      return;
+    }
+
+    await serveStatic(req, res, url.pathname);
+  } catch (error) {
+    console.error(error);
+    sendJson(res, error.statusCode || 500, { error: error.message || "Server error" });
+  }
+});
+
+server.listen(PORT, "127.0.0.1", () => {
+  console.log(`Mizutamari app running at http://127.0.0.1:${PORT}`);
+});
