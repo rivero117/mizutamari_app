@@ -15,6 +15,8 @@
 
 html,
 body,
+#app,
+.screen,
 #map {
   width: 100%;
   height: 100%;
@@ -26,6 +28,33 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body,
+#app {
+  position: relative;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.screen[hidden] {
+  display: none !important;
+}
+
+.screen-home {
+  padding-bottom: 72px;
+}
+
+.screen-form,
+.screen-ar {
+  display: grid;
+  place-items: center;
+  padding: 18px 18px 90px;
+  background: var(--paper);
 }
 
 body.click-posting #map,
@@ -73,6 +102,35 @@ button.danger {
   background: rgba(250, 236, 182, 0.94);
   box-shadow: 0 16px 40px rgba(43, 186, 165, 0.18);
   backdrop-filter: blur(14px);
+}
+
+#app-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 10px max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-right));
+  background: rgba(250, 236, 182, 0.94);
+  border-top: 1px solid rgba(18, 57, 54, 0.12);
+  box-shadow: 0 -12px 32px rgba(18, 57, 54, 0.12);
+}
+
+#app-footer button {
+  min-height: 48px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+#app-footer button[aria-current="page"] {
+  background: var(--aqua);
+  color: white;
+  box-shadow: 0 5px 0 rgba(18, 57, 54, 0.16);
 }
 
 .eyebrow {
@@ -352,7 +410,7 @@ input[type="number"] {
   background: rgba(18, 57, 54, 0.28);
 }
 
-.modal {
+.post-card {
   width: min(440px, 100%);
   max-height: calc(100vh - 36px);
   overflow: auto;
@@ -363,15 +421,64 @@ input[type="number"] {
   box-shadow: 0 22px 60px rgba(18, 57, 54, 0.28);
 }
 
-.modal h2 {
+.post-card h2 {
   margin: 0 0 10px;
   font-size: 21px;
 }
 
-.modal label {
+.post-card label {
   display: block;
   margin: 12px 0 6px;
   font-size: 13px;
+  font-weight: 800;
+}
+
+.camera-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: calc(100% - 72px);
+  object-fit: cover;
+  background: #123936;
+}
+
+.screen-form .camera-preview {
+  opacity: 0.28;
+}
+
+.post-card {
+  position: relative;
+  z-index: 1;
+}
+
+.screen-ar .camera-preview {
+  opacity: 0.9;
+}
+
+.ar-fish {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: rgba(43, 186, 165, 0.22);
+  font-size: 64px;
+  animation: fishFloat 2.8s ease-in-out infinite;
+}
+
+.ar-status {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 2;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(250, 236, 182, 0.88);
+  color: var(--ink);
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -417,6 +524,19 @@ textarea {
   line-height: 1.55;
 }
 
+.directions-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--aqua);
+  color: white;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 @keyframes puddleBreath {
   0%,
   100% {
@@ -441,6 +561,16 @@ textarea {
   }
 }
 
+@keyframes fishFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-18px) rotate(5deg);
+  }
+}
+
 @media (max-width: 720px) {
   .panel {
     top: 10px;
@@ -459,5 +589,11 @@ textarea {
 
   .data-box {
     display: none;
+  }
+
+  .post-card {
+    width: 100%;
+    max-height: calc(100vh - 112px);
+    padding: 14px;
   }
 }

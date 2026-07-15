@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rivero117.github.io/mizutamari_app/shared/puddle-post.schema.json",
+  "title": "Mizuta MAP Puddle Post",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "lat",
+    "lng",
+    "size",
+    "transparency",
+    "observedAt",
+    "image",
+    "createdAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lat": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90
+    },
+    "lng": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
+    },
+    "size": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000,
+      "description": "Puddle diameter in centimeters."
+    },
+    "transparency": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "1 is opaque and 5 is clear."
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "image": {
+      "type": "string"
+    },
+    "comment": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "depth": {
+      "type": "string"
+    },
+    "weather": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

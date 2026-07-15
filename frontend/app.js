@@ -1,10 +1,14 @@
 "use strict";
 
 const GEOJSON_URL = "../data/mizutamari.geojson";
-const STORAGE_KEY = "ameato_user_puddle_posts_v11";
+const STORAGE_KEY = "mizutaPosts";
+const LEGACY_STORAGE_KEY = "ameato_user_puddle_posts_v11";
 const START_CENTER = [134.3612, 33.9742];
 
+const screens = Array.from(document.querySelectorAll("[data-screen]"));
+const navButtons = Array.from(document.querySelectorAll("[data-nav]"));
 const statusEl = document.getElementById("status");
+const arStatusEl = document.getElementById("arStatus");
 const dataBox = document.getElementById("dataBox");
 const sourceBadge = document.getElementById("sourceBadge");
 const puddleCount = document.getElementById("puddleCount");
@@ -15,15 +19,16 @@ const locateBtn = document.getElementById("locateBtn");
 const addHereBtn = document.getElementById("addHereBtn");
 const clearBtn = document.getElementById("clearBtn");
 const playerAvatarInput = document.getElementById("playerAvatarInput");
-const modalBg = document.getElementById("modalBg");
 const postForm = document.getElementById("postForm");
 const placeText = document.getElementById("placeText");
 const diameterInput = document.getElementById("diameterInput");
-const turbidityInput = document.getElementById("turbidityInput");
+const transparencyInput = document.getElementById("transparencyInput");
+const observedAtInput = document.getElementById("observedAtInput");
 const reviewInput = document.getElementById("reviewInput");
 const photoInput = document.getElementById("photoInput");
-const contestInput = document.getElementById("contestInput");
 const cancelPostBtn = document.getElementById("cancelPostBtn");
+const postCamera = document.getElementById("postCamera");
+const arCamera = document.getElementById("arCamera");
 
 let currentView = "play";
 let clickMode = false;
@@ -32,7 +37,10 @@ let draftPinMarker = null;
 let playerMarker = null;
 let lastKnownPosition = null;
 let apiAvailable = false;
+let mapReady = false;
+let activeCameraStream = null;
 let puddles = [];
+let officialPuddles = [];
 
 const markers = [];
 
@@ -78,6 +86,7 @@ map.on("click", (event) => {
 });
 
 map.on("load", async () => {
+  mapReady = true;
   addGeoJsonLayers();
   await loadPuddles();
   setView("play", false);
@@ -90,17 +99,20 @@ async function loadPuddles() {
     const response = await fetch("/api/puddles", { cache: "no-store" });
     if (!response.ok) throw new Error("API is not available");
     const data = await response.json();
-    puddles = data.puddles || [];
+    const apiPuddles = data.puddles || [];
+    const localPuddles = loadLocalUserPuddles();
+    puddles = mergePuddleLists(apiPuddles, localPuddles);
     apiAvailable = true;
     sourceBadge.textContent = "API";
   } catch {
     const [official, user] = await Promise.all([loadOfficialFromGeoJson(), loadLocalUserPuddles()]);
-    puddles = [...official, ...user];
+    officialPuddles = official;
+    puddles = mergePuddleLists(official, user);
     apiAvailable = false;
     sourceBadge.textContent = "Static";
   }
 
-  renderPuddles();
+  renderPins(loadPosts());
   updateGeoJsonLayer();
   updateDataBox();
   statusEl.textContent = `${puddles.length}個の水たまりを読み込みました。`;
@@ -117,15 +129,142 @@ async function loadOfficialFromGeoJson() {
 }
 
 function loadLocalUserPuddles() {
+  return loadPosts().map(specPostToPuddle);
+}
+
+function saveLocalUserPuddles(userPuddles) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(userPuddles.map(puddleToSpecPost)));
+}
+
+function loadPosts() {
+  const stored = readPostArray(STORAGE_KEY);
+  if (stored.length > 0 || localStorage.getItem(STORAGE_KEY)) return stored.map(normalizeSpecPost).filter(Boolean);
+
+  const legacy = readPostArray(LEGACY_STORAGE_KEY).map(puddleToSpecPost).filter(Boolean);
+  if (legacy.length > 0) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+  }
+  return legacy;
+}
+
+function savePost(post) {
+  const normalized = normalizeSpecPost(post);
+  if (!normalized) throw new TypeError("投稿データの形式が正しくありません。");
+
+  const posts = loadPosts();
+  const index = posts.findIndex((item) => item.id === normalized.id);
+  if (index >= 0) posts[index] = normalized;
+  else posts.push(normalized);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
+  return normalized;
+}
+
+function readPostArray(key) {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function saveLocalUserPuddles(userPuddles) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(userPuddles));
+function normalizeSpecPost(post) {
+  const lat = Number(post.lat ?? post.latitude);
+  const lng = Number(post.lng ?? post.longitude);
+  const size = Number(
+    typeof post.size === "number" ? post.size : post.diameterCm ?? post.sizeCm ?? 120
+  );
+  const observedAt = safeIsoDate(post.observedAt || post.createdAt, new Date().toISOString());
+  const createdAt = safeIsoDate(post.createdAt || observedAt, observedAt);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(size)) return null;
+
+  return {
+    id: String(post.id || `post-${Date.now()}`),
+    lat,
+    lng,
+    size,
+    transparency: normalizeTransparency(post.transparency, post.turbidity),
+    observedAt,
+    image: String(post.image || post.photoDataUrl || ""),
+    comment: String(post.comment || post.review || ""),
+    depth: String(post.depth || ""),
+    weather: String(post.weather || ""),
+    createdAt
+  };
+}
+
+function safeIsoDate(value, fallback) {
+  const date = new Date(value || fallback);
+  if (Number.isNaN(date.getTime())) return new Date(fallback).toISOString();
+  return date.toISOString();
+}
+
+function puddleToSpecPost(puddle) {
+  return normalizeSpecPost({
+    id: puddle.id,
+    lat: puddle.latitude,
+    lng: puddle.longitude,
+    size: puddle.diameterCm,
+    transparency: puddle.transparency,
+    turbidity: puddle.turbidity,
+    observedAt: puddle.observedAt || puddle.createdAt,
+    image: puddle.photoDataUrl,
+    comment: puddle.review,
+    depth: puddle.depth,
+    weather: puddle.weather,
+    createdAt: puddle.createdAt
+  });
+}
+
+function specPostToPuddle(post) {
+  const normalized = normalizeSpecPost(post);
+  const diameterCm = Number(normalized.size || 120);
+  return {
+    id: normalized.id,
+    source: "user",
+    longitude: Number(normalized.lng),
+    latitude: Number(normalized.lat),
+    createdAt: normalized.observedAt,
+    observedAt: normalized.observedAt,
+    size: diameterToSize(diameterCm),
+    diameterCm,
+    transparency: normalized.transparency,
+    turbidity: transparencyToTurbidity(normalized.transparency),
+    review: normalized.comment,
+    photoDataUrl: normalized.image,
+    contestEntry: false,
+    fishCount: sizeToFishCount(diameterToSize(diameterCm), normalized.comment),
+    likes: 0,
+    depth: normalized.depth,
+    traffic: "",
+    handWash: "",
+    weather: normalized.weather,
+    note: ""
+  };
+}
+
+function normalizeTransparency(value, turbidity = "cloudy") {
+  const numeric = Number(value);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 5) return numeric;
+  if (turbidity === "clear") return 5;
+  if (turbidity === "muddy") return 1;
+  return 3;
+}
+
+function transparencyToTurbidity(value) {
+  const transparency = normalizeTransparency(value);
+  if (transparency >= 4) return "clear";
+  if (transparency <= 1) return "muddy";
+  return "cloudy";
+}
+
+function mergePuddleLists(base, user) {
+  const byId = new Map();
+  [...base, ...user].forEach((puddle) => {
+    if (puddle && puddle.id) byId.set(puddle.id, puddle);
+  });
+  return Array.from(byId.values());
 }
 
 function parseDiameterCm(value) {
@@ -319,6 +458,16 @@ function setLayerVisibility(layerId, visibility) {
   if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", visibility);
 }
 
+function renderPins(posts = loadPosts()) {
+  const visibleUserPuddles = posts.filter(isVisiblePost).map(specPostToPuddle);
+  const basePuddles = puddles.filter((puddle) => puddle.source !== "user");
+  const fallbackBase = basePuddles.length > 0 ? basePuddles : officialPuddles;
+  puddles = mergePuddleLists(fallbackBase, visibleUserPuddles);
+  renderPuddles();
+  updateGeoJsonLayer();
+  updateDataBox();
+}
+
 function renderPuddles() {
   markers.forEach(({ marker }) => marker.remove());
   markers.length = 0;
@@ -332,6 +481,14 @@ function renderPuddles() {
   });
 
   updateMarkerScale();
+}
+
+function isVisiblePost(post, now = new Date()) {
+  const observedAt = new Date(post.observedAt);
+  if (Number.isNaN(observedAt.getTime())) return false;
+  const start = new Date(now);
+  start.setDate(start.getDate() - 7);
+  return observedAt >= start && observedAt <= now;
 }
 
 function makePuddleElement(puddle) {
@@ -388,21 +545,25 @@ function labelTurbidity(turbidity) {
   return "ちょいにごり";
 }
 
+function makeGoogleMapsDirectionsUrl(puddle) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${Number(puddle.lat ?? puddle.latitude)},${Number(puddle.lng ?? puddle.longitude)}`
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function openGoogleMaps(lat, lng) {
+  window.open(makeGoogleMapsDirectionsUrl({ lat, lng }), "_blank", "noopener,noreferrer");
+}
+
 function showPuddlePopup(puddle) {
-  const photoHtml = puddle.photoDataUrl ? `<br><img class="popup-photo" src="${puddle.photoDataUrl}" alt="" />` : "";
   const html = `
     <strong>${puddle.contestEntry ? "🏆 " : ""}水たまり</strong><br>
     観測日時：${escapeHtml(puddle.createdAt || "不明")}<br>
-    直径：${escapeHtml(puddle.diameterCm ? `${puddle.diameterCm}cm` : "不明")}<br>
-    濁り具合：${escapeHtml(labelTurbidity(puddle.turbidity))}<br>
-    魚：${escapeHtml(puddle.fishCount)}匹<br>
-    交通量：${escapeHtml(puddle.traffic || "不明")}<br>
-    手洗い場：${escapeHtml(puddle.handWash || "不明")}<br>
-    天気予報：${escapeHtml(puddle.weather || "不明")}<br>
-    レビュー：${escapeHtml(puddle.review || "なし")}<br>
-    緯度：${Number(puddle.latitude).toFixed(6)}<br>
-    経度：${Number(puddle.longitude).toFixed(6)}
-    ${photoHtml}
+    大きさ：${escapeHtml(puddle.diameterCm ? `直径 ${puddle.diameterCm}cm` : "不明")}<br>
+    透明度：${escapeHtml(labelTurbidity(puddle.turbidity))}<br>
+    <button class="directions-link" type="button" onclick="openGoogleMaps(${Number(puddle.latitude)}, ${Number(puddle.longitude)})">Google Mapで経路を見る</button>
   `;
   new maplibregl.Popup({ offset: 28 }).setLngLat([puddle.longitude, puddle.latitude]).setHTML(html).addTo(map);
 }
@@ -448,86 +609,79 @@ function clearDraftPin() {
 
 function openPostForm(longitude, latitude) {
   selectedPoint = { longitude, latitude };
-  placeText.textContent = `投稿位置：緯度 ${latitude.toFixed(6)} / 経度 ${longitude.toFixed(6)}`;
+  placeText.textContent = "投稿位置を取得しました。";
   diameterInput.value = 120;
-  turbidityInput.value = "cloudy";
+  transparencyInput.value = "3";
+  observedAtInput.value = toDateTimeLocalValue(new Date());
   reviewInput.value = "";
   photoInput.value = "";
-  contestInput.checked = false;
-  modalBg.style.display = "flex";
+  showScreen("post");
 }
 
 function closePostForm() {
-  modalBg.style.display = "none";
   selectedPoint = null;
   clearDraftPin();
+  showScreen("home");
 }
 
 async function submitPost(event) {
   event.preventDefault();
 
   if (!selectedPoint) {
-    statusEl.textContent = "投稿する場所が選ばれていません。";
-    return;
+    placeText.textContent = "現在地を取得中...";
+    try {
+      selectedPoint = await getCurrentPoint();
+    } catch {
+      placeText.textContent = "現在地を取得できませんでした。";
+      return;
+    }
   }
 
   const diameterCm = Number(diameterInput.value || 120);
-  const size = diameterToSize(diameterCm);
   const review = reviewInput.value.trim();
-  const payload = {
-    longitude: selectedPoint.longitude,
-    latitude: selectedPoint.latitude,
-    diameterCm,
-    size,
-    turbidity: turbidityInput.value,
-    review,
-    photoDataUrl: await readPhotoAsDataUrl(photoInput.files[0]),
-    contestEntry: contestInput.checked,
-    fishCount: sizeToFishCount(size, review)
-  };
+  const observedAt = observedAtInput.value ? new Date(observedAtInput.value) : new Date();
+  const draftPost = normalizeSpecPost({
+    id: `post-${Date.now()}`,
+    lat: selectedPoint.latitude,
+    lng: selectedPoint.longitude,
+    size: diameterCm,
+    transparency: Number(transparencyInput.value),
+    observedAt: observedAt.toISOString(),
+    image: await readPhotoAsDataUrl(photoInput.files[0]),
+    comment: review,
+    createdAt: new Date().toISOString()
+  });
+  if (!draftPost) {
+    placeText.textContent = "投稿データの形式が正しくありません。";
+    return;
+  }
 
-  let savedPuddle = null;
+  let post = draftPost;
 
   if (apiAvailable) {
     try {
-      const response = await fetch("/api/puddles", {
+      const response = await fetch("/api/posts", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(draftPost)
       });
       if (!response.ok) throw new Error("Post failed");
-      savedPuddle = (await response.json()).puddle;
+      post = (await response.json()).post || draftPost;
     } catch {
       apiAvailable = false;
       sourceBadge.textContent = "Static";
     }
   }
 
-  if (!savedPuddle) {
-    savedPuddle = {
-      ...payload,
-      id: `user_puddle_${Date.now()}`,
-      source: "user",
-      createdAt: new Date().toISOString(),
-      likes: 0,
-      depth: "",
-      traffic: "",
-      handWash: "",
-      weather: "",
-      note: ""
-    };
-    const localUserPuddles = loadLocalUserPuddles();
-    localUserPuddles.push(savedPuddle);
-    saveLocalUserPuddles(localUserPuddles);
-  }
-
-  puddles.push(savedPuddle);
-  renderPuddles();
-  updateGeoJsonLayer();
-  updateDataBox();
-  closePostForm();
-  setView(currentView, true);
+  savePost(post);
+  showScreen("home");
+  refreshHome();
   statusEl.textContent = `直径${diameterCm}cmの水たまりを投稿しました。`;
+}
+
+function toDateTimeLocalValue(date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
 function sizeToFishCount(size, review) {
@@ -553,7 +707,7 @@ function locateUserOnly() {
   locateUser((longitude, latitude) => {
     showPlayer(longitude, latitude);
     map.easeTo({ center: [longitude, latitude], zoom: currentView === "play" ? 19.1 : 16.6, duration: 900 });
-    statusEl.textContent = `現在地を表示しました。緯度 ${latitude.toFixed(5)} / 経度 ${longitude.toFixed(5)}`;
+    statusEl.textContent = "現在地を表示しました。";
   });
 }
 
@@ -576,6 +730,20 @@ function locateUser(callback) {
     handleGeoLocationError,
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
   );
+}
+
+function getCurrentPoint() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not available"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ longitude: pos.coords.longitude, latitude: pos.coords.latitude }),
+      reject,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
 }
 
 function handleGeoLocationError(err) {
@@ -632,9 +800,7 @@ async function clearUserPuddles() {
 
   saveLocalUserPuddles([]);
   puddles = puddles.filter((puddle) => puddle.source !== "user");
-  renderPuddles();
-  updateGeoJsonLayer();
-  updateDataBox();
+  renderPins([]);
   statusEl.textContent = "自分の投稿を消しました。";
 }
 
@@ -647,6 +813,92 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;")
     .replaceAll("\n", "<br>");
 }
+
+function showScreen(screenName) {
+  const nextScreen = screens.find((screen) => screen.dataset.screen === screenName);
+  if (!nextScreen) return;
+
+  stopCamera();
+  screens.forEach((screen) => {
+    screen.hidden = screen !== nextScreen;
+  });
+  navButtons.forEach((button) => {
+    const active = button.dataset.nav === screenName;
+    button.toggleAttribute("aria-current", active);
+  });
+
+  if (screenName === "home") {
+    clearDraftPin();
+    if (mapReady) {
+      map.resize();
+      refreshHome();
+      setView(currentView, true);
+    }
+    return;
+  }
+
+  if (screenName === "post") {
+    observedAtInput.value = observedAtInput.value || toDateTimeLocalValue(new Date());
+    startCamera("post");
+    return;
+  }
+
+  if (screenName === "ar") {
+    startCamera("ar");
+  }
+}
+
+function refreshHome() {
+  renderPins(loadPosts());
+}
+
+async function startCamera(mode) {
+  const target = mode === "ar" ? arCamera : postCamera;
+  if (!target || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setCameraStatus(mode, "このブラウザではカメラが使えません。");
+    return;
+  }
+
+  try {
+    activeCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
+    });
+    target.srcObject = activeCameraStream;
+    await target.play();
+    setCameraStatus(mode, mode === "ar" ? "AR" : "カメラ起動中");
+  } catch {
+    setCameraStatus(mode, "カメラを起動できませんでした。");
+  }
+}
+
+function stopCamera() {
+  if (activeCameraStream) {
+    activeCameraStream.getTracks().forEach((track) => track.stop());
+    activeCameraStream = null;
+  }
+  [postCamera, arCamera].forEach((video) => {
+    if (video) video.srcObject = null;
+  });
+}
+
+function setCameraStatus(mode, message) {
+  if (mode === "ar" && arStatusEl) arStatusEl.textContent = message;
+  if (mode === "post" && placeText) placeText.textContent = message;
+}
+
+window.showScreen = showScreen;
+window.loadPosts = loadPosts;
+window.savePost = savePost;
+window.renderPins = renderPins;
+window.refreshHome = refreshHome;
+window.openGoogleMaps = openGoogleMaps;
+window.startCamera = startCamera;
+window.stopCamera = stopCamera;
+
+navButtons.forEach((button) => {
+  button.addEventListener("click", () => showScreen(button.dataset.nav));
+});
 
 playViewBtn.addEventListener("click", () => setView("play", true));
 mapViewBtn.addEventListener("click", () => setView("map", true));
@@ -668,8 +920,4 @@ clickModeBtn.addEventListener("click", () => {
 playerAvatarInput.addEventListener("change", () => {
   if (lastKnownPosition) showPlayer(lastKnownPosition.longitude, lastKnownPosition.latitude);
   statusEl.textContent = `自分のすがたを${getPlayerName()}にしました。`;
-});
-
-modalBg.addEventListener("click", (event) => {
-  if (event.target === modalBg) closePostForm();
 });
