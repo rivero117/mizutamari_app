@@ -21,6 +21,16 @@ npm run dev
 http://127.0.0.1:3000
 ```
 
+## GitHub Pages
+
+公開URL:
+
+```text
+https://rivero117.github.io/mizutamari_app/
+```
+
+`main` ブランチのリポジトリ直下が公開元です。ルートの `index.html` と既存の `mizutamari.html` は、静的配信用の `frontend/` へ遷移します。
+
 ## 実装済み API
 
 - `GET /api/health`
