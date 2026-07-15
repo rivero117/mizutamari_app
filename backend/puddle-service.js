@@ -25,6 +25,21 @@ function muddinessToTurbidity(value) {
   return "muddy";
 }
 
+function normalizeTransparency(value, turbidity = "cloudy") {
+  const numeric = Number(value);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 5) return numeric;
+  if (turbidity === "clear") return 5;
+  if (turbidity === "muddy") return 1;
+  return 3;
+}
+
+function transparencyToTurbidity(value) {
+  const transparency = normalizeTransparency(value);
+  if (transparency >= 4) return "clear";
+  if (transparency <= 1) return "muddy";
+  return "cloudy";
+}
+
 function sizeToFishCount(size, review = "") {
   const base = size === "small" ? 1 : size === "medium" ? 3 : 5;
   return (review || "").length > 30 ? base + 1 : base;
@@ -78,7 +93,7 @@ function officialFeatureToPuddle(feature, index, now = new Date()) {
     diameterCm,
     size,
     turbidity: muddinessToTurbidity(props["濁り具合"]),
-    transparency: muddinessToTurbidity(props["濁り具合"]),
+    transparency: normalizeTransparency(undefined, muddinessToTurbidity(props["濁り具合"])),
     review: props["水たまりのレビュー"] || "",
     photoDataUrl: props["画像"] || "",
     contestEntry: false,
@@ -114,7 +129,7 @@ function filterPuddles(puddles, query = {}, now = new Date()) {
   const q = String(normalizeQueryValue(query.q) || "").trim().toLowerCase();
 
   return puddles.filter((puddle) => {
-    if (recentDays !== undefined && !isWithinRecentDays(puddle.createdAt || puddle.observedAt, recentDays, now)) {
+    if (recentDays !== undefined && !isWithinRecentDays(puddle.observedAt || puddle.createdAt, recentDays, now)) {
       return false;
     }
 
@@ -149,13 +164,13 @@ function toMapPin(puddle) {
     diameterCm: puddle.diameterCm,
     transparency: puddle.transparency || puddle.turbidity,
     turbidity: puddle.turbidity,
-    observedAt: puddle.createdAt || puddle.observedAt || "",
+    observedAt: puddle.observedAt || puddle.createdAt || "",
     googleMapsUrl: puddle.googleMapsUrl || makeGoogleMapsDirectionsUrl(puddle),
     popup: {
       size: puddle.size,
       diameterCm: puddle.diameterCm,
       transparency: puddle.transparency || puddle.turbidity,
-      observedAt: puddle.createdAt || puddle.observedAt || ""
+      observedAt: puddle.observedAt || puddle.createdAt || ""
     }
   };
 }
@@ -175,10 +190,29 @@ function makeGoogleMapsDirectionsUrl(puddle, origin) {
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
+function toSpecPost(puddle) {
+  const observedAt = parseObservedDate(puddle.observedAt || puddle.createdAt);
+  const createdAt = parseObservedDate(puddle.createdAt || puddle.observedAt);
+  return {
+    id: String(puddle.id || ""),
+    lat: Number(puddle.lat ?? puddle.latitude),
+    lng: Number(puddle.lng ?? puddle.longitude),
+    size: Number(typeof puddle.size === "number" ? puddle.size : puddle.diameterCm),
+    transparency: normalizeTransparency(puddle.transparency, puddle.turbidity),
+    observedAt: observedAt?.toISOString() || "",
+    image: String(puddle.image || puddle.photoDataUrl || ""),
+    comment: String(puddle.comment || puddle.review || ""),
+    depth: String(puddle.depth || ""),
+    weather: String(puddle.weather || ""),
+    createdAt: createdAt?.toISOString() || observedAt?.toISOString() || ""
+  };
+}
+
 function sanitizeUserPuddle(input, now = new Date()) {
-  const longitude = Number(input.longitude);
-  const latitude = Number(input.latitude);
-  const diameterCm = Number(input.diameterCm || input.sizeCm || 120);
+  const longitude = Number(input.longitude ?? input.lng);
+  const latitude = Number(input.latitude ?? input.lat);
+  const specSize = typeof input.size === "number" ? input.size : undefined;
+  const diameterCm = Number(input.diameterCm ?? input.sizeCm ?? specSize ?? 120);
 
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
     const error = new Error("longitude and latitude are required");
@@ -192,23 +226,26 @@ function sanitizeUserPuddle(input, now = new Date()) {
     throw error;
   }
 
-  const turbidity = TURBIDITY_VALUES.has(input.turbidity) ? input.turbidity : "cloudy";
+  const turbidity = TURBIDITY_VALUES.has(input.turbidity)
+    ? input.turbidity
+    : transparencyToTurbidity(input.transparency);
   const size = diameterToSize(diameterCm);
-  const review = String(input.review || "").slice(0, 500);
+  const review = String(input.review || input.comment || "").slice(0, 500);
   const createdAt = now.toISOString();
+  const observedAt = parseObservedDate(input.observedAt, now)?.toISOString() || createdAt;
   const puddle = {
     id: `user_puddle_${now.getTime()}`,
     source: "user",
     longitude,
     latitude,
     createdAt,
-    observedAt: createdAt,
+    observedAt,
     diameterCm,
     size,
     turbidity,
-    transparency: input.transparency || turbidity,
+    transparency: normalizeTransparency(input.transparency, turbidity),
     review,
-    photoDataUrl: String(input.photoDataUrl || input.cameraPhotoDataUrl || ""),
+    photoDataUrl: String(input.photoDataUrl || input.cameraPhotoDataUrl || input.image || ""),
     contestEntry: Boolean(input.contestEntry),
     fishCount: Number(input.fishCount || sizeToFishCount(size, review)),
     likes: 0,
@@ -223,6 +260,39 @@ function sanitizeUserPuddle(input, now = new Date()) {
     ...puddle,
     googleMapsUrl: makeGoogleMapsDirectionsUrl(puddle)
   };
+}
+
+function sanitizeSpecPost(input, now = new Date()) {
+  const required = ["lat", "lng", "size", "transparency", "observedAt", "image"];
+  const missing = required.filter((field) => input[field] === undefined || input[field] === "");
+  if (missing.length > 0) {
+    const error = new Error(`Missing required fields: ${missing.join(", ")}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const transparency = Number(input.transparency);
+  if (!Number.isInteger(transparency) || transparency < 1 || transparency > 5) {
+    const error = new Error("transparency must be an integer between 1 and 5");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const latitude = Number(input.lat);
+  const longitude = Number(input.lng);
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    const error = new Error("lat or lng is outside the valid coordinate range");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!String(input.observedAt).includes("T") || Number.isNaN(new Date(input.observedAt).getTime())) {
+    const error = new Error("observedAt must be a valid date-time");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return sanitizeUserPuddle(input, now);
 }
 
 function createArFishOverlay(input = {}) {
@@ -264,12 +334,16 @@ module.exports = {
   parseDiameterCm,
   diameterToSize,
   muddinessToTurbidity,
+  normalizeTransparency,
+  transparencyToTurbidity,
   parseObservedDate,
   isWithinRecentDays,
   geoJsonToPuddles,
   filterPuddles,
   toMapPin,
   makeGoogleMapsDirectionsUrl,
+  toSpecPost,
   sanitizeUserPuddle,
+  sanitizeSpecPost,
   createArFishOverlay
 };

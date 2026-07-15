@@ -10,13 +10,16 @@ const {
   filterPuddles,
   geoJsonToPuddles,
   makeGoogleMapsDirectionsUrl,
+  sanitizeSpecPost,
   sanitizeUserPuddle,
-  toMapPin
+  toMapPin,
+  toSpecPost
 } = require("./puddle-service");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const FRONTEND_DIR = path.join(ROOT_DIR, "frontend");
 const DATA_DIR = path.join(ROOT_DIR, "data");
+const SHARED_DIR = path.join(ROOT_DIR, "shared");
 const OFFICIAL_GEOJSON_PATH = path.join(DATA_DIR, "mizutamari.geojson");
 const USER_PUDDLES_PATH = path.join(DATA_DIR, "user-puddles.json");
 const PORT = Number(process.env.PORT || 3000);
@@ -24,6 +27,7 @@ const PORT = Number(process.env.PORT || 3000);
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".geojson": "application/geo+json; charset=utf-8",
@@ -105,6 +109,13 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  if (req.method === "GET" && pathname === "/api/posts") {
+    const [official, user] = await Promise.all([loadOfficialPuddles(), loadUserPuddles()]);
+    const puddles = filterPuddles([...official, ...user], Object.fromEntries(req.urlSearchParams));
+    sendJson(res, 200, { posts: puddles.map(toSpecPost) });
+    return;
+  }
+
   if (req.method === "GET" && pathname === "/api/home/pins") {
     const [official, user] = await Promise.all([loadOfficialPuddles(), loadUserPuddles()]);
     const query = Object.fromEntries(req.urlSearchParams);
@@ -124,6 +135,16 @@ async function handleApi(req, res, pathname) {
     userPuddles.push(puddle);
     await writeJsonFile(USER_PUDDLES_PATH, userPuddles);
     sendJson(res, 201, { puddle });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/posts") {
+    const input = await readRequestJson(req);
+    const puddle = sanitizeSpecPost(input);
+    const userPuddles = await loadUserPuddles();
+    userPuddles.push(puddle);
+    await writeJsonFile(USER_PUDDLES_PATH, userPuddles);
+    sendJson(res, 201, { post: toSpecPost(puddle) });
     return;
   }
 
@@ -169,8 +190,13 @@ async function handleApi(req, res, pathname) {
 async function serveStatic(req, res, pathname) {
   const requestPath = pathname === "/" ? "/index.html" : pathname;
   const servesData = requestPath.startsWith("/data/");
-  const baseDir = servesData ? DATA_DIR : FRONTEND_DIR;
-  const relativePath = servesData ? requestPath.replace(/^\/data/, "") : requestPath;
+  const servesShared = requestPath.startsWith("/shared/");
+  const baseDir = servesData ? DATA_DIR : servesShared ? SHARED_DIR : FRONTEND_DIR;
+  const relativePath = servesData
+    ? requestPath.replace(/^\/data/, "")
+    : servesShared
+      ? requestPath.replace(/^\/shared/, "")
+      : requestPath;
   const filePath = path.resolve(baseDir, `.${decodeURIComponent(relativePath)}`);
 
   if (!filePath.startsWith(baseDir)) {

@@ -388,21 +388,25 @@ function labelTurbidity(turbidity) {
   return "ちょいにごり";
 }
 
+function makeGoogleMapsDirectionsUrl(puddle) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${Number(puddle.lat)},${Number(puddle.lng)}`
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 function showPuddlePopup(puddle) {
-  const photoHtml = puddle.photoDataUrl ? `<br><img class="popup-photo" src="${puddle.photoDataUrl}" alt="" />` : "";
+  const directionsUrl = makeGoogleMapsDirectionsUrl({
+    lat: puddle.latitude,
+    lng: puddle.longitude
+  });
   const html = `
     <strong>${puddle.contestEntry ? "🏆 " : ""}水たまり</strong><br>
     観測日時：${escapeHtml(puddle.createdAt || "不明")}<br>
-    直径：${escapeHtml(puddle.diameterCm ? `${puddle.diameterCm}cm` : "不明")}<br>
-    濁り具合：${escapeHtml(labelTurbidity(puddle.turbidity))}<br>
-    魚：${escapeHtml(puddle.fishCount)}匹<br>
-    交通量：${escapeHtml(puddle.traffic || "不明")}<br>
-    手洗い場：${escapeHtml(puddle.handWash || "不明")}<br>
-    天気予報：${escapeHtml(puddle.weather || "不明")}<br>
-    レビュー：${escapeHtml(puddle.review || "なし")}<br>
-    緯度：${Number(puddle.latitude).toFixed(6)}<br>
-    経度：${Number(puddle.longitude).toFixed(6)}
-    ${photoHtml}
+    大きさ：${escapeHtml(puddle.diameterCm ? `直径 ${puddle.diameterCm}cm` : "不明")}<br>
+    透明度：${escapeHtml(labelTurbidity(puddle.turbidity))}<br>
+    <a class="directions-link" href="${directionsUrl}" target="_blank" rel="noopener noreferrer">Google Mapで経路を見る</a>
   `;
   new maplibregl.Popup({ offset: 28 }).setLngLat([puddle.longitude, puddle.latitude]).setHTML(html).addTo(map);
 }
@@ -448,7 +452,7 @@ function clearDraftPin() {
 
 function openPostForm(longitude, latitude) {
   selectedPoint = { longitude, latitude };
-  placeText.textContent = `投稿位置：緯度 ${latitude.toFixed(6)} / 経度 ${longitude.toFixed(6)}`;
+  placeText.textContent = "投稿位置を取得しました。";
   diameterInput.value = 120;
   turbidityInput.value = "cloudy";
   reviewInput.value = "";
@@ -553,7 +557,7 @@ function locateUserOnly() {
   locateUser((longitude, latitude) => {
     showPlayer(longitude, latitude);
     map.easeTo({ center: [longitude, latitude], zoom: currentView === "play" ? 19.1 : 16.6, duration: 900 });
-    statusEl.textContent = `現在地を表示しました。緯度 ${latitude.toFixed(5)} / 経度 ${longitude.toFixed(5)}`;
+    statusEl.textContent = "現在地を表示しました。";
   });
 }
 

@@ -9,8 +9,10 @@ const {
   geoJsonToPuddles,
   isWithinRecentDays,
   makeGoogleMapsDirectionsUrl,
+  sanitizeSpecPost,
   sanitizeUserPuddle,
-  toMapPin
+  toMapPin,
+  toSpecPost
 } = require("./puddle-service");
 
 test("geoJsonToPuddles normalizes official puddle fields", () => {
@@ -89,6 +91,91 @@ test("sanitizeUserPuddle validates coordinates and creates map-ready data", () =
   assert.equal(puddle.size, "medium");
   assert.equal(puddle.photoDataUrl, "data:image/png;base64,abc");
   assert.match(puddle.googleMapsUrl, /destination=33\.97%2C134\.36/);
+});
+
+test("sanitizeSpecPost accepts the specification field names without changing the legacy API", () => {
+  const now = new Date("2026-07-15T02:00:00.000Z");
+  const puddle = sanitizeSpecPost(
+    {
+      lat: 33.97,
+      lng: 134.36,
+      size: 242,
+      transparency: 5,
+      observedAt: "2026-07-15T10:00:00+09:00",
+      image: "data:image/png;base64,abc",
+      comment: "spec post"
+    },
+    now
+  );
+
+  assert.equal(puddle.latitude, 33.97);
+  assert.equal(puddle.longitude, 134.36);
+  assert.equal(puddle.diameterCm, 242);
+  assert.equal(puddle.size, "medium");
+  assert.equal(puddle.transparency, 5);
+  assert.equal(puddle.turbidity, "clear");
+  assert.equal(puddle.review, "spec post");
+});
+
+test("sanitizeSpecPost rejects invalid canonical coordinates", () => {
+  assert.throws(
+    () =>
+      sanitizeSpecPost({
+        lat: 120,
+        lng: 134.36,
+        size: 242,
+        transparency: 5,
+        observedAt: "2026-07-15T10:00:00+09:00",
+        image: "data:image/png;base64,abc"
+      }),
+    /coordinate range/
+  );
+});
+
+test("toSpecPost exposes the specification contract from legacy data", () => {
+  const post = toSpecPost({
+    id: "legacy-1",
+    latitude: 33.97,
+    longitude: 134.36,
+    diameterCm: 180,
+    size: "medium",
+    turbidity: "cloudy",
+    observedAt: "2026-07-15T01:00:00.000Z",
+    createdAt: "2026-07-15T02:00:00.000Z",
+    photoDataUrl: "data:image/png;base64,abc",
+    review: "legacy"
+  });
+
+  assert.deepEqual(
+    {
+      lat: post.lat,
+      lng: post.lng,
+      size: post.size,
+      transparency: post.transparency,
+      image: post.image,
+      comment: post.comment
+    },
+    {
+      lat: 33.97,
+      lng: 134.36,
+      size: 180,
+      transparency: 3,
+      image: "data:image/png;base64,abc",
+      comment: "legacy"
+    }
+  );
+});
+
+test("HOME filtering uses observedAt rather than the later createdAt", () => {
+  const puddles = [
+    {
+      id: "old-observation",
+      observedAt: "2026-06-01T00:00:00.000Z",
+      createdAt: "2026-07-15T00:00:00.000Z"
+    }
+  ];
+
+  assert.deepEqual(filterPuddles(puddles, { recentDays: 7 }, DEFAULT_NOW), []);
 });
 
 test("toMapPin returns the HOME popup contract", () => {
