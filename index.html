@@ -1,58 +1,16 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>水たまりマップ</title>
-
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet/dist/leaflet.css"
-  />
-
-  <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-    }
-
-    #map {
-      height: 100vh;
-      width: 100%;
-    }
-  </style>
-</head>
-<body>
-
-  <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-  <script>
-    const map = L.map("map").setView([33.974, 134.361], 15);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
-
-    fetch("data/mizutamari.geojson")
-      .then(response => response.json())
-      .then(data => {
-        L.geoJSON(data, {
-          onEachFeature: function(feature, layer) {
-            let props = feature.properties;
-            let popup = "";
-
-            for (let key in props) {
-              popup += `<b>${key}</b>: ${props[key]}<br>`;
-            }
-
-            layer.bindPopup(popup);
-          }
-        }).addTo(map);
-      });
-  </script>
-
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0; url=./frontend/?v=20260715" />
+    <title>Mizuta MAP</title>
+    <link rel="canonical" href="./frontend/" />
+    <script>
+      window.location.replace("./frontend/?v=20260715");
+    </script>
+  </head>
+  <body>
+    <p><a href="./frontend/?v=20260715">Mizuta MAP を開く</a></p>
+  </body>
 </html>
