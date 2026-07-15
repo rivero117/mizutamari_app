@@ -508,11 +508,13 @@ textarea {
 }
 
 .popup-photo {
-  width: 170px;
+  display: block;
+  width: 100%;
+  max-width: 220px;
   max-height: 130px;
   object-fit: cover;
   border-radius: 12px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .maplibregl-popup-content {

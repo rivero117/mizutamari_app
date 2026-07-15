@@ -41,6 +41,7 @@ let mapReady = false;
 let activeCameraStream = null;
 let puddles = [];
 let officialPuddles = [];
+let remoteUserPuddles = [];
 
 const markers = [];
 
@@ -101,18 +102,21 @@ async function loadPuddles() {
     const data = await response.json();
     const apiPuddles = data.puddles || [];
     const localPuddles = loadLocalUserPuddles();
-    puddles = mergePuddleLists(apiPuddles, localPuddles);
+    officialPuddles = apiPuddles.filter((puddle) => puddle.source !== "user");
+    remoteUserPuddles = apiPuddles.filter((puddle) => puddle.source === "user");
+    puddles = mergePuddleLists(officialPuddles, [...remoteUserPuddles, ...localPuddles]);
     apiAvailable = true;
     sourceBadge.textContent = "API";
   } catch {
     const [official, user] = await Promise.all([loadOfficialFromGeoJson(), loadLocalUserPuddles()]);
     officialPuddles = official;
+    remoteUserPuddles = [];
     puddles = mergePuddleLists(official, user);
     apiAvailable = false;
     sourceBadge.textContent = "Static";
   }
 
-  renderPins(loadPosts());
+  renderPins(loadAllPosts());
   updateGeoJsonLayer();
   updateDataBox();
   statusEl.textContent = `${puddles.length}個の水たまりを読み込みました。`;
@@ -157,6 +161,19 @@ function savePost(post) {
   else posts.push(normalized);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
   return normalized;
+}
+
+function loadAllPosts() {
+  return mergeSpecPosts(remoteUserPuddles.map(puddleToSpecPost), loadPosts());
+}
+
+function mergeSpecPosts(...groups) {
+  const byId = new Map();
+  groups.flat().forEach((post) => {
+    const normalized = normalizeSpecPost(post);
+    if (normalized) byId.set(normalized.id, normalized);
+  });
+  return Array.from(byId.values());
 }
 
 function readPostArray(key) {
@@ -558,14 +575,35 @@ function openGoogleMaps(lat, lng) {
 }
 
 function showPuddlePopup(puddle) {
+  const photoUrl = normalizePopupPhotoUrl(puddle.photoDataUrl || puddle.image);
+  const photoHtml = photoUrl
+    ? `<img class="popup-photo" src="${escapeAttribute(photoUrl)}" alt="投稿された水たまりの写真" />`
+    : "";
   const html = `
     <strong>${puddle.contestEntry ? "🏆 " : ""}水たまり</strong><br>
     観測日時：${escapeHtml(puddle.createdAt || "不明")}<br>
     大きさ：${escapeHtml(puddle.diameterCm ? `直径 ${puddle.diameterCm}cm` : "不明")}<br>
     透明度：${escapeHtml(labelTurbidity(puddle.turbidity))}<br>
+    ${photoHtml}
     <button class="directions-link" type="button" onclick="openGoogleMaps(${Number(puddle.latitude)}, ${Number(puddle.longitude)})">Google Mapで経路を見る</button>
   `;
   new maplibregl.Popup({ offset: 28 }).setLngLat([puddle.longitude, puddle.latitude]).setHTML(html).addTo(map);
+}
+
+function normalizePopupPhotoUrl(value) {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (url.startsWith("data:image/") || url.startsWith("blob:")) return url;
+  if (url.startsWith("https://") || url.startsWith("http://")) return url;
+  return "";
+}
+
+function escapeAttribute(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 function placeDraftPin(longitude, latitude) {
@@ -799,6 +837,7 @@ async function clearUserPuddles() {
   }
 
   saveLocalUserPuddles([]);
+  remoteUserPuddles = [];
   puddles = puddles.filter((puddle) => puddle.source !== "user");
   renderPins([]);
   statusEl.textContent = "自分の投稿を消しました。";
@@ -849,7 +888,7 @@ function showScreen(screenName) {
 }
 
 function refreshHome() {
-  renderPins(loadPosts());
+  renderPins(loadAllPosts());
 }
 
 async function startCamera(mode) {
