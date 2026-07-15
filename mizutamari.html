@@ -317,6 +317,43 @@
       cursor: pointer;
     }
 
+    .draft-pin-marker {
+  position: relative;
+  width: 1px;
+  height: 1px;
+  pointer-events: auto;
+}
+
+.draft-pin-icon {
+  position: absolute;
+  left: -18px;
+  top: -44px;
+  font-size: 38px;
+  filter: drop-shadow(0 8px 8px rgba(18,57,54,0.25));
+}
+
+.draft-pin-card {
+  position: absolute;
+  left: -86px;
+  top: -92px;
+  width: 172px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(250, 236, 182, 0.96);
+  border: 2px solid rgba(43, 186, 165, 0.45);
+  box-shadow: 0 12px 28px rgba(18,57,54,0.22);
+  text-align: center;
+  color: #123936;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.draft-pin-card button {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
     .player-bubble {
       position: absolute;
       left: 50%;
@@ -590,6 +627,7 @@
     let currentView = "play";
     let clickMode = false;
     let selectedPoint = null;
+    let draftPinMarker = null;
     let playerMarker = null;
     let lastKnownPosition = null;
 
@@ -1220,6 +1258,56 @@
         .addTo(map);
     }
 
+    function clearDraftPin() {
+  if (draftPinMarker) {
+    draftPinMarker.remove();
+    draftPinMarker = null;
+  }
+}
+
+function placeDraftPin(longitude, latitude) {
+  clearDraftPin();
+
+  selectedPoint = { longitude, latitude };
+
+  const el = document.createElement("div");
+  el.className = "draft-pin-marker";
+  el.innerHTML = `
+    <div class="draft-pin-card">
+      この場所でいい？
+      <button type="button">ここに水たまりを作る</button>
+    </div>
+    <div class="draft-pin-icon">📍</div>
+  `;
+
+  const button = el.querySelector("button");
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openPostForm(longitude, latitude);
+  });
+
+  el.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  draftPinMarker = new maplibregl.Marker({
+    element: el,
+    anchor: "bottom"
+  })
+    .setLngLat([longitude, latitude])
+    .addTo(map);
+
+  map.easeTo({
+    center: [longitude, latitude],
+    zoom: Math.max(map.getZoom(), 18.8),
+    pitch: currentView === "play" ? 58 : 0,
+    bearing: currentView === "play" ? -28 : 0,
+    duration: 500
+  });
+
+  statusEl.textContent = "ピンを刺しました。「ここに水たまりを作る」を押すと投稿できます。";
+}
+
     function openPostForm(longitude, latitude) {
       selectedPoint = { longitude, latitude };
 
@@ -1236,9 +1324,10 @@
     }
 
     function closePostForm() {
-      modalBg.style.display = "none";
-      selectedPoint = null;
-    }
+  modalBg.style.display = "none";
+  selectedPoint = null;
+  clearDraftPin();
+}
 
     function readPhotoAsDataUrl(file) {
       return new Promise((resolve) => {
@@ -1295,6 +1384,7 @@
       renderPuddles();
       updateGeoJsonLayer();
       closePostForm();
+      clearDraftPin();
 
       if (currentView === "play") {
         map.easeTo({
@@ -1391,9 +1481,9 @@
     });
 
     map.on("click", (event) => {
-      if (!clickMode) return;
-      openPostForm(event.lngLat.lng, event.lngLat.lat);
-    });
+  if (!clickMode) return;
+  placeDraftPin(event.lngLat.lng, event.lngLat.lat);
+});
 
     locateBtn.addEventListener("click", locateUserOnly);
     addHereBtn.addEventListener("click", locateUserAndOpenForm);
