@@ -145,3 +145,17 @@ https://rivero117.github.io/mizutamari_app/
 ## 静的配信時の動き
 
 `frontend/` は API が使えない環境では `data/mizutamari.geojson` と `localStorage` にフォールバックします。GitHub Pages などバックエンドがない環境でも表示とブラウザ内投稿は動きます。
+
+## 仕様書 11 章対応メモ
+
+`index.html` は `screen-home`, `screen-post`, `screen-ar` と `app-footer` の共通構造に合わせています。
+
+- A 担当 HOME: `#screen-home`, `loadPosts()`, `renderPins(posts)`, `refreshHome()`, `openGoogleMaps(lat, lng)`
+- B 担当 投稿: `#screen-post`, `savePost(post)`, `showScreen("home")`
+- C 担当 AR/フッター: `#screen-ar`, `#app-footer`, `showScreen(screenName)`, `startCamera(mode)`, `stopCamera()`
+
+投稿の共通保存キーは `mizutaPosts` です。旧キー `ameato_user_puddle_posts_v11` は初回読み込み時に `mizutaPosts` へ移行します。
+
+HOME に表示する投稿は `observedAt` が過去 1 週間以内のものだけです。ピン詳細には大きさ、透明度、観測日時、経路ボタンだけを表示し、座標は表示しません。
+
+ローカル API が使える場合、投稿画面は仕様書形式の `POST /api/posts` を優先します。API が使えない場合は `mizutaPosts` だけに保存します。
