@@ -66,7 +66,7 @@ test("filterPuddles supports recent, turbidity, diameter, and text search filter
   ];
 
   assert.deepEqual(
-    filterPuddles(puddles, { recentDays: "7", turbidity: "clear", maxDiameterCm: "120", q: "station" }).map(
+    filterPuddles(puddles, { recentDays: "7", turbidity: "clear", maxDiameterCm: "120", q: "station" }, DEFAULT_NOW).map(
       (puddle) => puddle.id
     ),
     ["recent_clear"]
