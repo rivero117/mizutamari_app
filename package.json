@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node backend/server.js",
     "start": "node backend/server.js",
-    "check": "node --check backend/server.js && node --check frontend/app.js"
+    "check": "node --check backend/server.js && node --check backend/puddle-service.js && node --check frontend/app.js",
+    "test": "node --test backend/*.test.js"
   },
   "engines": {
     "node": ">=18"

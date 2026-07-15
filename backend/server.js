@@ -4,6 +4,15 @@ const http = require("http");
 const fs = require("fs/promises");
 const path = require("path");
 const { URL } = require("url");
+const {
+  DEFAULT_RECENT_DAYS,
+  createArFishOverlay,
+  filterPuddles,
+  geoJsonToPuddles,
+  makeGoogleMapsDirectionsUrl,
+  sanitizeUserPuddle,
+  toMapPin
+} = require("./puddle-service");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const FRONTEND_DIR = path.join(ROOT_DIR, "frontend");
@@ -52,104 +61,17 @@ async function writeJsonFile(filePath, payload) {
   await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
-function parseDiameterCm(value) {
-  if (value === null || value === undefined) return 120;
-  const match = String(value).match(/\d+(\.\d+)?/);
-  return match ? Number(match[0]) : 120;
-}
-
-function diameterToSize(diameterCm) {
-  const n = Number(diameterCm || 120);
-  if (n < 150) return "small";
-  if (n < 300) return "medium";
-  return "large";
-}
-
-function muddinessToTurbidity(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "cloudy";
-  if (n <= 3) return "clear";
-  if (n <= 6) return "cloudy";
-  return "muddy";
-}
-
-function officialFeatureToPuddle(feature, index) {
-  const [longitude, latitude] = feature.geometry.coordinates;
-  const props = feature.properties || {};
-  const diameterCm = parseDiameterCm(props["直径"]);
-  const size = diameterToSize(diameterCm);
-
-  return {
-    id: `geojson_puddle_${props["No"] || index + 1}`,
-    source: "geojson",
-    longitude,
-    latitude,
-    createdAt: props["観測日時"] || "",
-    diameterCm,
-    size,
-    turbidity: muddinessToTurbidity(props["濁り具合"]),
-    review: props["水たまりのレビュー"] || "",
-    photoDataUrl: props["画像"] || "",
-    contestEntry: false,
-    fishCount: size === "small" ? 1 : size === "medium" ? 3 : 5,
-    likes: 0,
-    depth: props["水深"] || "",
-    traffic: props["周囲の交通量"] || "",
-    handWash: props["近くの手洗い場の有無"] || "",
-    weather: props["天気予報"] || "",
-    note: props["備考"] || ""
-  };
-}
-
 async function loadOfficialPuddles() {
   const geojson = await readJsonFile(OFFICIAL_GEOJSON_PATH, {
     type: "FeatureCollection",
     features: []
   });
 
-  return geojson.features
-    .filter((feature) => feature.geometry && feature.geometry.type === "Point")
-    .map(officialFeatureToPuddle);
+  return geoJsonToPuddles(geojson);
 }
 
 async function loadUserPuddles() {
   return readJsonFile(USER_PUDDLES_PATH, []);
-}
-
-function sanitizeUserPuddle(input) {
-  const longitude = Number(input.longitude);
-  const latitude = Number(input.latitude);
-  const diameterCm = Number(input.diameterCm || 120);
-
-  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
-    const error = new Error("longitude and latitude are required");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const size = diameterToSize(diameterCm);
-  return {
-    id: `user_puddle_${Date.now()}`,
-    source: "user",
-    longitude,
-    latitude,
-    createdAt: new Date().toISOString(),
-    diameterCm,
-    size,
-    turbidity: ["clear", "cloudy", "muddy"].includes(input.turbidity)
-      ? input.turbidity
-      : "cloudy",
-    review: String(input.review || "").slice(0, 500),
-    photoDataUrl: String(input.photoDataUrl || ""),
-    contestEntry: Boolean(input.contestEntry),
-    fishCount: Number(input.fishCount || (size === "small" ? 1 : size === "medium" ? 3 : 5)),
-    likes: 0,
-    depth: "",
-    traffic: "",
-    handWash: "",
-    weather: "",
-    note: ""
-  };
 }
 
 async function readRequestJson(req) {
@@ -178,7 +100,20 @@ async function handleApi(req, res, pathname) {
 
   if (req.method === "GET" && pathname === "/api/puddles") {
     const [official, user] = await Promise.all([loadOfficialPuddles(), loadUserPuddles()]);
-    sendJson(res, 200, { puddles: [...official, ...user] });
+    const puddles = filterPuddles([...official, ...user], Object.fromEntries(req.urlSearchParams));
+    sendJson(res, 200, { puddles });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/home/pins") {
+    const [official, user] = await Promise.all([loadOfficialPuddles(), loadUserPuddles()]);
+    const query = Object.fromEntries(req.urlSearchParams);
+    const recentDays = query.recentDays || DEFAULT_RECENT_DAYS;
+    const puddles = filterPuddles([...official, ...user], { ...query, recentDays });
+    sendJson(res, 200, {
+      recentDays: Number(recentDays),
+      pins: puddles.map(toMapPin)
+    });
     return;
   }
 
@@ -189,6 +124,36 @@ async function handleApi(req, res, pathname) {
     userPuddles.push(puddle);
     await writeJsonFile(USER_PUDDLES_PATH, userPuddles);
     sendJson(res, 201, { puddle });
+    return;
+  }
+
+  if (req.method === "GET" && pathname.match(/^\/api\/puddles\/[^/]+\/directions$/)) {
+    const id = decodeURIComponent(pathname.split("/")[3]);
+    const [official, user] = await Promise.all([loadOfficialPuddles(), loadUserPuddles()]);
+    const puddle = [...official, ...user].find((item) => item.id === id);
+
+    if (!puddle) {
+      sendJson(res, 404, { error: "Puddle not found" });
+      return;
+    }
+
+    const originLatitude = Number(req.urlSearchParams.get("originLatitude"));
+    const originLongitude = Number(req.urlSearchParams.get("originLongitude"));
+    const origin =
+      Number.isFinite(originLatitude) && Number.isFinite(originLongitude)
+        ? { latitude: originLatitude, longitude: originLongitude }
+        : null;
+
+    sendJson(res, 200, {
+      id: puddle.id,
+      googleMapsUrl: makeGoogleMapsDirectionsUrl(puddle, origin)
+    });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/ar/water-detection") {
+    const input = await readRequestJson(req);
+    sendJson(res, 200, createArFishOverlay(input));
     return;
   }
 
@@ -233,6 +198,7 @@ async function serveStatic(req, res, pathname) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    req.urlSearchParams = url.searchParams;
 
     if (url.pathname.startsWith("/api/")) {
       await handleApi(req, res, url.pathname);
