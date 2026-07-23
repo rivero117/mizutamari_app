@@ -904,7 +904,7 @@ async function startCamera(mode) {
       await initAr3D();
       positionArFish(window.innerWidth / 2, window.innerHeight * 0.56, false);
     }
-    setCameraStatus(mode, mode === "ar" ? "水たまりの位置をタップ" : "カメラ起動中");
+    setCameraStatus(mode, mode === "ar" ? "平面検知非対応 タップで仮配置" : "カメラ起動中");
   } catch {
     setCameraStatus(mode, "カメラを起動できませんでした。");
   } finally {
@@ -1032,7 +1032,7 @@ function prepareFishModel(THREE, model, targetSize) {
   model.position.sub(center);
   model.scale.multiplyScalar(targetSize / maxAxis);
   wrapper.rotation.x = -0.12;
-  wrapper.rotation.y = Math.PI;
+  wrapper.rotation.y = 0;
   wrapper.userData.baseRotationY = wrapper.rotation.y;
   return wrapper;
 }
@@ -1081,19 +1081,30 @@ function resizeAr3D() {
 }
 
 async function startPlaneDetectionAr() {
-  if (!navigator.xr?.isSessionSupported) return false;
-  if (!(await navigator.xr.isSessionSupported("immersive-ar"))) return false;
+  if (!navigator.xr?.requestSession) return false;
 
-  await initAr3D();
-  if (!ar3D?.renderer) return false;
+  const sessionInit = {
+    requiredFeatures: ["hit-test"],
+    optionalFeatures: ["local-floor"]
+  };
+  let session;
 
   try {
-    const sessionInit = {
-      requiredFeatures: ["hit-test"],
-      optionalFeatures: ["local-floor", "dom-overlay"],
-      domOverlay: { root: document.getElementById("app") }
-    };
-    xrSession = await navigator.xr.requestSession("immersive-ar", sessionInit);
+    session = await navigator.xr.requestSession("immersive-ar", sessionInit);
+  } catch (error) {
+    console.warn("WebXR immersive-ar session could not be started.", error);
+    return false;
+  }
+
+  xrSession = session;
+  await initAr3D();
+  if (!ar3D?.renderer) {
+    cleanupPlaneDetectionAr();
+    session.end().catch(() => {});
+    return false;
+  }
+
+  try {
     ar3D.renderer.xr.enabled = true;
     ar3D.renderer.xr.setReferenceSpaceType("local");
     await ar3D.renderer.xr.setSession(xrSession);
@@ -1115,6 +1126,7 @@ async function startPlaneDetectionAr() {
     return true;
   } catch (error) {
     console.warn("WebXR plane hit-test is unavailable. Camera fallback is active.", error);
+    session.end().catch(() => {});
     cleanupPlaneDetectionAr();
     return false;
   }
