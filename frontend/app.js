@@ -44,7 +44,7 @@ const arReticle = document.getElementById("arReticle");
 const arHintEl = document.getElementById("arHint");
 const arScreen = document.getElementById("screen-ar");
 
-let currentView = "play";
+let currentView = "map";
 let clickMode = false;
 let selectedPoint = null;
 let draftPinMarker = null;
@@ -113,7 +113,7 @@ map.on("load", async () => {
   mapReady = true;
   addGeoJsonLayers();
   await loadPuddles();
-  setView("play", false);
+  setView("map", false);
 });
 
 async function loadPuddles() {
