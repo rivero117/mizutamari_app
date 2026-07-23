@@ -182,10 +182,6 @@ h1 {
   font-weight: 800;
 }
 
-.stats span:last-child {
-  display: none;
-}
-
 .stats strong {
   font-size: 18px;
 }

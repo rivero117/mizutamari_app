@@ -16,7 +16,6 @@ const navButtons = Array.from(document.querySelectorAll("[data-nav]"));
 const statusEl = document.getElementById("status");
 const arStatusEl = document.getElementById("arStatus");
 const dataBox = document.getElementById("dataBox");
-const sourceBadge = document.getElementById("sourceBadge");
 const puddleCount = document.getElementById("puddleCount");
 const playViewBtn = document.getElementById("playViewBtn");
 const mapViewBtn = document.getElementById("mapViewBtn");
@@ -121,19 +120,17 @@ async function loadPuddles() {
 
   try {
     const response = await fetch("/api/puddles", { cache: "no-store" });
-    if (!response.ok) throw new Error("API is not available");
+    if (!response.ok) throw new Error("Puddle data is not available");
     const data = await response.json();
     const apiPuddles = data.puddles || [];
     const localPuddles = loadLocalUserPuddles();
     puddles = mergePuddleLists(apiPuddles, localPuddles);
     apiAvailable = true;
-    sourceBadge.textContent = "API";
   } catch {
     const [official, user] = await Promise.all([loadOfficialFromGeoJson(), loadLocalUserPuddles()]);
     officialPuddles = official;
     puddles = mergePuddleLists(official, user);
     apiAvailable = false;
-    sourceBadge.textContent = "Static";
   }
 
   renderPins(loadPosts());
@@ -483,10 +480,9 @@ function setLayerVisibility(layerId, visibility) {
 }
 
 function renderPins(posts = loadPosts()) {
-  const visibleUserPuddles = posts.filter(isVisiblePost).map(specPostToPuddle);
-  const basePuddles = puddles.filter((puddle) => puddle.source !== "user");
-  const fallbackBase = basePuddles.length > 0 ? basePuddles : officialPuddles;
-  puddles = mergePuddleLists(fallbackBase, visibleUserPuddles);
+  const localUserPuddles = posts.map(specPostToPuddle);
+  const fallbackBase = puddles.length > 0 ? puddles : officialPuddles;
+  puddles = mergePuddleLists(fallbackBase, localUserPuddles);
   renderPuddles();
   updateGeoJsonLayer();
   updateDataBox();
@@ -505,14 +501,6 @@ function renderPuddles() {
   });
 
   updateMarkerScale();
-}
-
-function isVisiblePost(post, now = new Date()) {
-  const observedAt = new Date(post.observedAt);
-  if (Number.isNaN(observedAt.getTime())) return false;
-  const start = new Date(now);
-  start.setDate(start.getDate() - 7);
-  return observedAt >= start && observedAt <= now;
 }
 
 function makePuddleElement(puddle) {
@@ -563,10 +551,20 @@ function diameterToScale(diameterCm) {
   return Math.min(Math.max(Math.sqrt(diameter / 120), 0.55), 2.2);
 }
 
-function labelTurbidity(turbidity) {
-  if (turbidity === "clear") return "すきとおり";
-  if (turbidity === "muddy") return "にごり";
-  return "ちょいにごり";
+function formatTransparencyPercent(puddle) {
+  const transparency = normalizeTransparency(puddle.transparency, puddle.turbidity);
+  return `${Math.round((transparency / 5) * 100)}%`;
+}
+
+function formatObservedAt(puddle) {
+  const value = puddle.observedAt || puddle.createdAt || "";
+  const date = new Date(value);
+  if (!value) return "不明";
+  if (Number.isNaN(date.getTime())) return value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}/${month}/${day}`;
 }
 
 function makeGoogleMapsDirectionsUrl(puddle) {
@@ -584,9 +582,9 @@ function openGoogleMaps(lat, lng) {
 function showPuddlePopup(puddle) {
   const html = `
     <strong>${puddle.contestEntry ? "🏆 " : ""}水たまり</strong><br>
-    観測日時：${escapeHtml(puddle.createdAt || "不明")}<br>
     大きさ：${escapeHtml(puddle.diameterCm ? `直径 ${puddle.diameterCm}cm` : "不明")}<br>
-    透明度：${escapeHtml(labelTurbidity(puddle.turbidity))}<br>
+    透明度：${escapeHtml(formatTransparencyPercent(puddle))}<br>
+    観測日時：${escapeHtml(formatObservedAt(puddle))}<br>
     <button class="directions-link" type="button" onclick="openGoogleMaps(${Number(puddle.latitude)}, ${Number(puddle.longitude)})">Google Mapで経路を見る</button>
   `;
   new maplibregl.Popup({ offset: 28 }).setLngLat([puddle.longitude, puddle.latitude]).setHTML(html).addTo(map);
@@ -755,7 +753,6 @@ async function submitPost(event) {
       post = (await response.json()).post || draftPost;
     } catch {
       apiAvailable = false;
-      sourceBadge.textContent = "Static";
     }
   }
 
@@ -885,7 +882,6 @@ async function clearUserPuddles() {
       await fetch("/api/puddles/user", { method: "DELETE" });
     } catch {
       apiAvailable = false;
-      sourceBadge.textContent = "Static";
     }
   }
 
