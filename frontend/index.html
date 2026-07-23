@@ -5,12 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mizuta MAP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-home-live-sync" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-home-actions" />
   </head>
   <body>
     <main id="app">
       <section id="screen-home" class="screen screen-home" data-screen="home">
         <div id="map" aria-label="Mizuta MAP"></div>
+
+        <button id="locateBtn" class="map-locate-button" type="button" aria-label="現在地を見る" title="現在地を見る">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="5" r="1"></circle>
+            <path d="m9 20 3-6 3 6"></path>
+            <path d="m6 8 6 2 6-2"></path>
+            <path d="M12 10v4"></path>
+          </svg>
+        </button>
 
         <section class="panel" aria-label="操作パネル">
           <div>
@@ -73,7 +82,6 @@
 
           <div class="actions">
             <button id="clickModeBtn" type="button">地図をクリックして投稿</button>
-            <button id="locateBtn" class="secondary" type="button">現在地を見る</button>
             <button id="addHereBtn" class="secondary" type="button">現在地で投稿</button>
             <button id="clearBtn" class="danger" type="button">自分の投稿を消す</button>
           </div>
@@ -156,6 +164,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260723-home-live-sync"></script>
+    <script src="./app.js?v=20260723-home-actions"></script>
   </body>
 </html>
