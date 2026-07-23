@@ -431,6 +431,23 @@ function updateDataBox() {
 }
 
 function addGeoJsonLayers() {
+  const diameterRadiusExpression = [
+    "interpolate",
+    ["linear"],
+    ["to-number", ["get", "diameterCm"]],
+    50,
+    5,
+    120,
+    8,
+    240,
+    12,
+    420,
+    18,
+    600,
+    24
+  ];
+  const sourceStrokeWidthExpression = ["case", ["==", ["get", "source"], "geojson"], 2, 4];
+
   map.addSource("puddle-geojson", {
     type: "geojson",
     data: { type: "FeatureCollection", features: [] }
@@ -443,18 +460,14 @@ function addGeoJsonLayers() {
     paint: {
       "circle-radius": [
         "interpolate",
-        ["linear"],
-        ["to-number", ["get", "diameterCm"]],
-        50,
-        5,
-        120,
-        8,
-        240,
-        12,
-        420,
-        18,
-        600,
-        24
+        ["exponential", 2],
+        ["zoom"],
+        11,
+        ["*", 0.03125, diameterRadiusExpression],
+        16,
+        diameterRadiusExpression,
+        20,
+        ["*", 1.5, diameterRadiusExpression]
       ],
       "circle-color": [
         "match",
@@ -469,7 +482,17 @@ function addGeoJsonLayers() {
       ],
       "circle-opacity": 0.72,
       "circle-stroke-color": ["case", ["==", ["get", "source"], "geojson"], "#20373B", "#F96635"],
-      "circle-stroke-width": ["case", ["==", ["get", "source"], "geojson"], 2, 4]
+      "circle-stroke-width": [
+        "interpolate",
+        ["exponential", 2],
+        ["zoom"],
+        11,
+        ["*", 0.25, sourceStrokeWidthExpression],
+        16,
+        sourceStrokeWidthExpression,
+        20,
+        ["*", 1.5, sourceStrokeWidthExpression]
+      ]
     }
   });
 
@@ -666,15 +689,8 @@ function updateMarkerScale() {
 
 function zoomScale() {
   const z = map.getZoom();
-  if (z < 13) return 0.1;
-  if (z < 14) return 0.14;
-  if (z < 15) return 0.2;
-  if (z < 16) return 0.3;
-  if (z < 17) return 0.46;
-  if (z < 18) return 0.68;
-  if (z < 19) return 1;
-  if (z < 20) return 1.25;
-  return 1.5;
+  const geographicScale = 1.25 * (2 ** (z - 19.1));
+  return Math.min(Math.max(geographicScale, 0.04), 1.5);
 }
 
 function diameterToScale(diameterCm) {
