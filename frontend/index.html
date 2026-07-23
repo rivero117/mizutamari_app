@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mizuta MAP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-camera-fish-together" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-camera-fish-post-defaults" />
   </head>
   <body>
     <main id="app">
@@ -73,8 +73,9 @@
           </section>
 
           <section class="post-section" aria-label="大きさ">
+            <span class="field-title">大きさ</span>
             <div class="size-options">
-              <label><input type="radio" name="size" value="100" />約1m以下</label>
+              <label><input type="radio" name="size" value="100" checked />約1m以下</label>
               <label><input type="radio" name="size" value="200" />約2m</label>
               <label><input type="radio" name="size" value="300" />約3m</label>
               <label><input type="radio" name="size" value="400" />約4m以上</label>
@@ -82,10 +83,12 @@
           </section>
 
           <section class="post-section" aria-label="透明度">
+            <span class="field-title">透明度</span>
             <input id="transparencyInput" class="transparency-range" type="range" min="1" max="10" step="1" value="1" aria-label="透明度" />
           </section>
 
           <section class="post-section" aria-label="観測日時">
+            <span class="field-title">観測日時</span>
             <input id="observedAtInput" class="date-calendar" type="date" aria-label="観測日時" />
           </section>
 
@@ -114,6 +117,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260723-camera-fish-together"></script>
+    <script src="./app.js?v=20260723-camera-fish-post-defaults"></script>
   </body>
 </html>

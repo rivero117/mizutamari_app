@@ -632,7 +632,14 @@ function clearDraftPin() {
 }
 
 function getSelectedSizeInput() {
-  return postForm.querySelector('input[name="size"]:checked');
+  return postForm.querySelector('input[name="size"]:checked') || postForm.querySelector('input[name="size"][value="100"]');
+}
+
+function setDefaultPostDetails() {
+  const defaultSizeInput = postForm.querySelector('input[name="size"][value="100"]');
+  if (defaultSizeInput) defaultSizeInput.checked = true;
+  setTransparencyLevel(1);
+  setObservedAt(new Date());
 }
 
 function resetPhotoInputs() {
@@ -691,11 +698,7 @@ function openPostForm(longitude, latitude) {
   selectedPoint = { longitude, latitude };
   placeText.textContent = "位置を取得しました";
   resetPhotoInputs();
-  postForm.querySelectorAll('input[name="size"]').forEach((input) => {
-    input.checked = false;
-  });
-  setTransparencyLevel(1);
-  setObservedAt(new Date());
+  setDefaultPostDetails();
   validatePostForm();
   showScreen("post");
 }
@@ -927,16 +930,12 @@ function showScreen(screenName) {
   }
 
   if (screenName === "post") {
-    if (!observedAtInput.value) setObservedAt(new Date());
+    setDefaultPostDetails();
     if (selectedPoint) {
       placeText.textContent = "位置を取得しました";
       validatePostForm();
     } else {
       resetPhotoInputs();
-      postForm.querySelectorAll('input[name="size"]').forEach((input) => {
-        input.checked = false;
-      });
-      setTransparencyLevel(1);
       preparePostLocation();
     }
     return;

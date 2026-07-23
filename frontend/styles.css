@@ -486,7 +486,15 @@ input[type="number"] {
 
 .post-section {
   display: grid;
-  gap: 8px;
+  gap: 7px;
+}
+
+.field-title {
+  justify-self: start;
+  color: #1f2c2b;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .photo-field {
