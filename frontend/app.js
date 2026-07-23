@@ -11,6 +11,7 @@ const FISH_BODY_TEXTURE_URL = "./assets/fish/kajirare_body.png";
 const FISH_EYE_TEXTURE_URL = "./assets/fish/kajirare_eye.png";
 const FISH_TAIL_TEXTURE_URL = "./assets/fish/kajirare_tail.png";
 const HOME_SYNC_INTERVAL_MS = 3000;
+const HOME_API_RETRY_INTERVAL_MS = 30000;
 
 const screens = Array.from(document.querySelectorAll("[data-screen]"));
 const navButtons = Array.from(document.querySelectorAll("[data-nav]"));
@@ -53,7 +54,7 @@ const arReticle = document.getElementById("arReticle");
 const arHintEl = document.getElementById("arHint");
 const arScreen = document.getElementById("screen-ar");
 
-let currentView = "play";
+let currentView = "map";
 let clickMode = false;
 let selectedPoint = null;
 let draftPinMarker = null;
@@ -83,6 +84,7 @@ let homeFilters = {
 };
 let selectedPhotoFile = null;
 let homeSyncInFlight = false;
+let nextHomeSyncAttemptAt = 0;
 
 const markers = [];
 
@@ -131,7 +133,7 @@ map.on("load", async () => {
   mapReady = true;
   addGeoJsonLayers();
   await loadPuddles();
-  setView("play", false);
+  setView("map", false);
 });
 
 async function loadPuddles() {
@@ -157,6 +159,7 @@ async function loadPuddles() {
     puddles = mergePuddleLists(official, user);
     allHomePuddles = puddles;
     apiAvailable = false;
+    nextHomeSyncAttemptAt = Date.now() + HOME_API_RETRY_INTERVAL_MS;
     sourceBadge.textContent = "Static";
   } finally {
     homeSyncInFlight = false;
@@ -1116,9 +1119,11 @@ function apiPuddleRevision(items) {
       .map((puddle) => [
         puddle.id,
         puddle.observedAt || puddle.createdAt || "",
+        Number(puddle.latitude || 0),
+        Number(puddle.longitude || 0),
         Number(puddle.diameterCm || 0),
         Number(puddle.transparency || 0),
-        String(puddle.photoDataUrl || "").length
+        String(puddle.photoDataUrl || "")
       ])
       .sort(([leftId], [rightId]) => String(leftId).localeCompare(String(rightId)))
   );
@@ -1126,16 +1131,25 @@ function apiPuddleRevision(items) {
 
 async function syncRemoteHomePuddles() {
   const homeScreen = document.getElementById("screen-home");
-  if (!apiAvailable || !mapReady || homeSyncInFlight || document.hidden || homeScreen?.hidden) {
+  if (
+    !mapReady ||
+    homeSyncInFlight ||
+    document.hidden ||
+    homeScreen?.hidden ||
+    Date.now() < nextHomeSyncAttemptAt
+  ) {
     return false;
   }
 
   homeSyncInFlight = true;
   try {
     const response = await fetch("/api/puddles", { cache: "no-store" });
-    if (!response.ok) return false;
+    if (!response.ok) throw new Error("HOME sync failed");
 
     const nextApiPuddles = (await response.json()).puddles || [];
+    apiAvailable = true;
+    nextHomeSyncAttemptAt = 0;
+    sourceBadge.textContent = "API";
     const currentApiPuddles = [...officialPuddles, ...remoteUserPuddles];
     if (apiPuddleRevision(nextApiPuddles) === apiPuddleRevision(currentApiPuddles)) return false;
 
@@ -1149,6 +1163,7 @@ async function syncRemoteHomePuddles() {
     statusEl.textContent = `${puddles.length}個の水たまりを表示しています。`;
     return true;
   } catch {
+    nextHomeSyncAttemptAt = Date.now() + HOME_API_RETRY_INTERVAL_MS;
     return false;
   } finally {
     homeSyncInFlight = false;
@@ -1164,15 +1179,6 @@ async function startCamera(mode, options = {}) {
   }
 
   cameraStarting = true;
-  if (mode === "ar" && !options.skipPlaneDetection) {
-    setCameraStatus("ar", "平面検知を準備中");
-    const planeArStarted = await startPlaneDetectionAr();
-    if (planeArStarted) {
-      cameraStarting = false;
-      return;
-    }
-  }
-
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     setCameraStatus(mode, "このブラウザではカメラが使えません。");
     cameraStarting = false;
@@ -1193,7 +1199,7 @@ async function startCamera(mode, options = {}) {
     setCameraStatus(
       mode,
       mode === "ar"
-        ? `平面検知非対応 ${xrLastFailure || "この環境では未検出"} タップで仮配置`
+        ? "カメラ起動中 タップで平面検知 / 仮配置"
         : "カメラ起動中"
     );
   } catch {
@@ -1267,10 +1273,14 @@ async function initAr3D() {
     scene.add(fillLight);
 
     const loadedFish = await loadFishAsset(THREE, FBXLoader);
-    const screenFish = loadedFish ? prepareFishModel(THREE, loadedFish, 320) : createSimpleFishModel(THREE, 1.7);
-    const xrFish = loadedFish ? prepareFishModel(THREE, loadedFish.clone(true), 0.46) : createSimpleFishModel(THREE, 0.003);
-    screenRoot.add(screenFish);
-    xrRoot.add(xrFish);
+    const screenPuddle = createPuddleModel(THREE, 1);
+    const xrPuddle = createPuddleModel(THREE, 0.0026);
+    const screenFish = createFishSchool(THREE, loadedFish, 1);
+    const xrFish = createFishSchool(THREE, loadedFish, 0.00145);
+    screenFish.position.y = 8;
+    xrFish.position.y = 0.018;
+    screenRoot.add(screenPuddle, screenFish);
+    xrRoot.add(xrPuddle, xrFish);
 
     ar3D = {
       THREE,
@@ -1280,6 +1290,8 @@ async function initAr3D() {
       xrCamera,
       screenRoot,
       xrRoot,
+      screenPuddle,
+      xrPuddle,
       screenFish,
       xrFish,
       startedAt: performance.now()
@@ -1312,8 +1324,12 @@ async function loadFishAsset(THREE, FBXLoader) {
       if (!child.isMesh) return;
       const name = `${child.name || ""} ${child.material?.name || ""}`.toLowerCase();
       const map = name.includes("eye") ? eyeTexture : name.includes("tail") ? tailTexture : bodyTexture;
+      const color = name.includes("eye") ? 0x47330b : name.includes("tail") ? 0xb8efe4 : 0xffe49a;
       child.material = new THREE.MeshStandardMaterial({
         map,
+        color,
+        emissive: color,
+        emissiveIntensity: name.includes("eye") ? 0 : 0.08,
         roughness: 0.82,
         metalness: 0
       });
@@ -1325,7 +1341,32 @@ async function loadFishAsset(THREE, FBXLoader) {
   }
 }
 
-function prepareFishModel(THREE, model, targetSize) {
+function createFishSchool(THREE, model, unitScale) {
+  const school = new THREE.Group();
+  const fishSpecs = [
+    { x: 0, y: 0, z: 0, size: 320, color: 0xffe49a, tail: 0xb8efe4, phase: 0 },
+    { x: -132, y: -42, z: -18, size: 150, color: 0xbdeeff, tail: 0xffe49a, phase: 1.6 },
+    { x: 128, y: 44, z: -24, size: 132, color: 0xcdf3d5, tail: 0xbdeeff, phase: 3.1 },
+    { x: 42, y: -72, z: -34, size: 110, color: 0xffd2dc, tail: 0xffe49a, phase: 4.4 }
+  ];
+
+  fishSpecs.forEach((spec, index) => {
+    const fish = model
+      ? prepareFishModel(THREE, model.clone(true), spec.size * unitScale, spec)
+      : createSimpleFishModel(THREE, 1.7 * unitScale);
+    fish.position.set(spec.x * unitScale, spec.y * unitScale, spec.z * unitScale);
+    fish.userData.baseX = fish.position.x;
+    fish.userData.baseY = fish.position.y;
+    fish.userData.baseZ = fish.position.z;
+    fish.userData.phase = spec.phase;
+    fish.userData.turnAmount = index === 0 ? Math.PI / 2 : Math.PI / 2.5;
+    school.add(fish);
+  });
+
+  return school;
+}
+
+function prepareFishModel(THREE, model, targetSize, colors = {}) {
   const wrapper = new THREE.Group();
   wrapper.add(model);
 
@@ -1336,19 +1377,92 @@ function prepareFishModel(THREE, model, targetSize) {
 
   model.position.sub(center);
   model.scale.multiplyScalar(targetSize / maxAxis);
+  model.traverse((child) => {
+    if (!child.isMesh || !child.material) return;
+    const name = `${child.name || ""} ${child.material.name || ""}`.toLowerCase();
+    if (name.includes("eye")) return;
+    child.material = child.material.clone();
+    child.material.map = null;
+    child.material.color.setHex(name.includes("tail") ? colors.tail || 0xb8efe4 : colors.color || 0xffe49a);
+    child.material.emissive.setHex(name.includes("tail") ? colors.tail || 0xb8efe4 : colors.color || 0xffe49a);
+    child.material.emissiveIntensity = 0.1;
+    child.material.needsUpdate = true;
+  });
   wrapper.rotation.x = -0.12;
   wrapper.rotation.y = 0;
-  wrapper.rotation.z = Math.PI / 2;
+  wrapper.rotation.z = -Math.PI / 2;
   wrapper.userData.baseRotationX = wrapper.rotation.x;
   wrapper.userData.baseRotationY = wrapper.rotation.y;
   wrapper.userData.baseRotationZ = wrapper.rotation.z;
   return wrapper;
 }
 
+function createPuddleModel(THREE, unitScale) {
+  const group = new THREE.Group();
+  const waterMaterial = new THREE.MeshStandardMaterial({
+    color: 0xbdeeff,
+    emissive: 0x7fd9e8,
+    emissiveIntensity: 0.18,
+    roughness: 0.38,
+    metalness: 0,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false
+  });
+  const shineMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false
+  });
+  const rippleMaterial = new THREE.MeshBasicMaterial({
+    color: 0xeafcff,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false
+  });
+
+  const water = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 16), waterMaterial);
+  water.scale.set(230 * unitScale, 72 * unitScale, 10 * unitScale);
+  water.rotation.x = Math.PI / 2;
+  group.add(water);
+
+  const ripple = new THREE.Mesh(new THREE.TorusGeometry(84 * unitScale, 1.6 * unitScale, 8, 72), rippleMaterial);
+  ripple.scale.set(1.55, 0.54, 1);
+  ripple.rotation.x = Math.PI / 2;
+  ripple.position.z = 8 * unitScale;
+  group.add(ripple);
+
+  const shine = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 8), shineMaterial);
+  shine.scale.set(42 * unitScale, 10 * unitScale, 2 * unitScale);
+  shine.position.set(-58 * unitScale, 18 * unitScale, 12 * unitScale);
+  shine.rotation.z = -0.22;
+  group.add(shine);
+
+  group.userData.water = water;
+  group.userData.ripple = ripple;
+  group.userData.shine = shine;
+  group.userData.unitScale = unitScale;
+  group.userData.waterBaseScale = water.scale.clone();
+  group.userData.rippleBaseScale = ripple.scale.clone();
+  group.userData.shineBaseX = shine.position.x;
+  return group;
+}
+
 function createSimpleFishModel(THREE, scale) {
   const group = new THREE.Group();
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xffd56f, roughness: 0.78 });
-  const finMaterial = new THREE.MeshStandardMaterial({ color: 0xffe59a, roughness: 0.76 });
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: 0xbdeeff,
+    emissive: 0xbdeeff,
+    emissiveIntensity: 0.08,
+    roughness: 0.78
+  });
+  const finMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffe49a,
+    emissive: 0xffe49a,
+    emissiveIntensity: 0.08,
+    roughness: 0.76
+  });
   const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x47330b, roughness: 0.6 });
 
   const body = new THREE.Mesh(new THREE.SphereGeometry(30, 32, 18), bodyMaterial);
@@ -1435,7 +1549,7 @@ async function startPlaneDetectionAr() {
     xrPlaced = false;
 
     ar3D.screenRoot.visible = false;
-    ar3D.xrRoot.visible = false;
+    showXrPreviewFish();
     arScreen.classList.add("xr-on");
     setCameraStatus("ar", "平面を探しています");
     setArHint("床や水面にスマホを向けてタップ");
@@ -1471,6 +1585,17 @@ function cleanupPlaneDetectionAr() {
   arScreen.classList.remove("xr-on");
 }
 
+function showXrPreviewFish() {
+  if (!ar3D?.xrRoot) return;
+  ar3D.xrRoot.position.set(0, -0.18, -1.05);
+  ar3D.xrRoot.rotation.set(-Math.PI / 2, 0, 0);
+  ar3D.xrRoot.visible = true;
+  ar3D.xrRoot.userData.floatBaseX = ar3D.xrRoot.position.x;
+  ar3D.xrRoot.userData.floatBaseY = ar3D.xrRoot.position.y;
+  ar3D.xrRoot.userData.floatBaseZ = ar3D.xrRoot.position.z;
+  ar3D.xrRoot.userData.previewPlacement = true;
+}
+
 function placeFishOnDetectedPlane() {
   if (!xrHitMatrix || !ar3D?.xrRoot) {
     setCameraStatus("ar", "平面を探しています");
@@ -1491,6 +1616,7 @@ function placeFishOnDetectedPlane() {
   xrRoot.userData.floatBaseX = xrRoot.position.x;
   xrRoot.userData.floatBaseY = xrRoot.position.y;
   xrRoot.userData.floatBaseZ = xrRoot.position.z;
+  xrRoot.userData.previewPlacement = false;
   xrPlaced = true;
   arScreen.classList.add("fish-placed");
   setCameraStatus("ar", "平面にぷかぷか中");
@@ -1550,16 +1676,22 @@ function animateAr3D(timestamp, frame) {
   const screenSwimX = Math.sin(t * 1.15) * 22;
   const screenFloatY = Math.sin(t * 1.9) * 12 + Math.sin(t * 3.1) * 3;
   const screenJumpY = jumpPulse(t, 4.2) * 58;
-  ar3D.screenRoot.position.x = (ar3D.screenRoot.userData.baseX || 0) + screenSwimX;
-  ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + screenFloatY + screenJumpY;
-  ar3D.screenRoot.scale.setScalar((ar3D.screenRoot.userData.depthScale || 1) * (1 + Math.sin(t * 2.2) * 0.018 + jumpPulse(t, 4.2) * 0.045));
+  ar3D.screenRoot.position.x = ar3D.screenRoot.userData.baseX || 0;
+  ar3D.screenRoot.position.y = ar3D.screenRoot.userData.baseY || 0;
+  ar3D.screenRoot.scale.setScalar(ar3D.screenRoot.userData.depthScale || 1);
+  animatePuddle(ar3D.screenPuddle, t);
+  ar3D.screenFish.position.x = screenSwimX;
+  ar3D.screenFish.position.y = screenFloatY + screenJumpY + 8;
+  ar3D.screenFish.scale.setScalar(1 + Math.sin(t * 2.2) * 0.018 + jumpPulse(t, 4.2) * 0.045);
   animateFishPose(ar3D.screenFish, t, screenJumpY * 0.0015);
 
   if (ar3D.xrRoot.visible) {
     const xrJumpY = jumpPulse(t, 4.8) * 0.08;
     ar3D.xrRoot.position.x = (ar3D.xrRoot.userData.floatBaseX || ar3D.xrRoot.position.x) + Math.sin(t * 1.2) * 0.012;
-    ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.018 + xrJumpY;
+    ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.008;
     ar3D.xrRoot.position.z = ar3D.xrRoot.userData.floatBaseZ || ar3D.xrRoot.position.z;
+    animatePuddle(ar3D.xrPuddle, t);
+    ar3D.xrFish.position.y = 0.018 + Math.sin(t * 1.8) * 0.014 + xrJumpY;
     animateFishPose(ar3D.xrFish, t, xrJumpY * 1.7);
   }
 
@@ -1574,10 +1706,41 @@ function jumpPulse(time, interval) {
 
 function animateFishPose(fish, time, jumpTilt = 0) {
   if (!fish) return;
-  const halfTurn = Math.sin(time * 1.18) * (Math.PI / 2);
-  fish.rotation.x = (fish.userData.baseRotationX || 0) + Math.sin(time * 1.55) * 0.07;
-  fish.rotation.y = (fish.userData.baseRotationY || 0) + halfTurn + Math.sin(time * 3.2) * 0.08;
-  fish.rotation.z = (fish.userData.baseRotationZ || 0) + Math.sin(time * 1.35) * 0.11 + jumpTilt;
+  fish.children.forEach((child, index) => {
+    const phase = child.userData.phase || 0;
+    const turn = Math.sin(time * 1.18 + phase) * (child.userData.turnAmount || Math.PI / 2);
+    child.position.x = (child.userData.baseX || 0) + Math.sin(time * 1.4 + phase) * (index === 0 ? 8 : 14);
+    child.position.y = (child.userData.baseY || 0) + Math.sin(time * 1.9 + phase) * (index === 0 ? 4 : 9);
+    child.rotation.x = (child.userData.baseRotationX || 0) + Math.sin(time * 1.55 + phase) * 0.07;
+    child.rotation.y = (child.userData.baseRotationY || 0) + turn + Math.sin(time * 3.2 + phase) * 0.08;
+    child.rotation.z = (child.userData.baseRotationZ || 0) + Math.sin(time * 1.35 + phase) * 0.11 + jumpTilt;
+  });
+}
+
+function animatePuddle(puddle, time) {
+  if (!puddle) return;
+  const water = puddle.userData.water;
+  const ripple = puddle.userData.ripple;
+  const shine = puddle.userData.shine;
+  const unitScale = puddle.userData.unitScale || 1;
+  if (water) {
+    const base = puddle.userData.waterBaseScale;
+    water.scale.set(
+      base.x * (1 + Math.sin(time * 1.4) * 0.025),
+      base.y * (1 + Math.cos(time * 1.2) * 0.03),
+      base.z
+    );
+  }
+  if (ripple) {
+    const base = puddle.userData.rippleBaseScale;
+    ripple.rotation.z = Math.sin(time * 0.9) * 0.08;
+    ripple.scale.x = base.x + Math.sin(time * 1.7) * 0.05;
+    ripple.scale.y = base.y + Math.cos(time * 1.5) * 0.03;
+  }
+  if (shine) {
+    shine.position.x = (puddle.userData.shineBaseX || 0) + Math.sin(time * 1.8) * 6 * unitScale;
+    shine.material.opacity = 0.42 + Math.sin(time * 2.1) * 0.08;
+  }
 }
 
 window.showScreen = showScreen;
@@ -1639,13 +1802,16 @@ postForm.addEventListener("submit", submitPost);
 arScreen.addEventListener("click", async (event) => {
   if (event.target.closest("button")) return;
   if (!xrSession && navigator.xr?.requestSession) {
-    stopActiveCameraStream();
-    arCamera.srcObject = null;
     setCameraStatus("ar", "平面検知を再試行中");
     setArHint("床や水面にスマホを向けてください");
     const planeArStarted = await startPlaneDetectionAr();
-    if (planeArStarted) return;
-    await startCamera("ar", { skipPlaneDetection: true });
+    if (planeArStarted) {
+      stopActiveCameraStream();
+      arCamera.srcObject = null;
+      placeFishOnDetectedPlane();
+      return;
+    }
+    setCameraStatus("ar", `平面検知非対応 ${xrLastFailure || "この環境では未検出"} タップで仮配置`);
   }
   positionArFish(event.clientX, event.clientY, true);
 });

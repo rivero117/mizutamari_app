@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>雨あと水族館</title>
+    <title>Mizuta MAP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-home-main-sync" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-home-live-sync" />
   </head>
   <body>
     <main id="app">
       <section id="screen-home" class="screen screen-home" data-screen="home">
-        <div id="map" aria-label="水たまりマップ"></div>
+        <div id="map" aria-label="Mizuta MAP"></div>
 
         <section class="panel" aria-label="操作パネル">
           <div>
-            <p class="eyebrow">Mizutamari Map</p>
-            <h1>雨あと水族館</h1>
+            <p class="eyebrow">Mizuta MAP</p>
+            <h1>Mizuta MAP</h1>
           </div>
 
           <div class="stats">
@@ -67,7 +67,7 @@
           </form>
 
           <div class="segmented" role="group" aria-label="表示モード">
-            <button id="playViewBtn" class="active" type="button">あそぶ</button>
+            <button id="playViewBtn" type="button">あそぶ</button>
             <button id="mapViewBtn" type="button">マップ</button>
           </div>
 
@@ -156,6 +156,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260723-home-main-sync"></script>
+    <script src="./app.js?v=20260723-home-live-sync"></script>
   </body>
 </html>
