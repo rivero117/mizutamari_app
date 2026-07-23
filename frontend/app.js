@@ -6,8 +6,10 @@ const LEGACY_STORAGE_KEY = "ameato_user_puddle_posts_v11";
 const START_CENTER = [134.3612, 33.9742];
 const THREE_URL = "https://esm.sh/three@0.160.0";
 const FBX_LOADER_URL = "https://esm.sh/three@0.160.0/examples/jsm/loaders/FBXLoader.js";
-const FISH_MODEL_URL = "./assets/fish/sacabambaspis.fbx";
-const FISH_TEXTURE_URL = "./assets/fish/texture.png";
+const FISH_MODEL_URL = "./assets/fish/kajirare_fish.fbx";
+const FISH_BODY_TEXTURE_URL = "./assets/fish/kajirare_body.png";
+const FISH_EYE_TEXTURE_URL = "./assets/fish/kajirare_eye.png";
+const FISH_TAIL_TEXTURE_URL = "./assets/fish/kajirare_tail.png";
 
 const screens = Array.from(document.querySelectorAll("[data-screen]"));
 const navButtons = Array.from(document.querySelectorAll("[data-nav]"));
@@ -1061,11 +1063,10 @@ async function initAr3D() {
     scene.add(fillLight);
 
     const loadedFish = await loadFishAsset(THREE, FBXLoader);
-    const screenFish = loadedFish ? prepareFishModel(THREE, loadedFish, 220) : createSimpleFishModel(THREE, 1.7);
-    const xrFish = loadedFish ? prepareFishModel(THREE, loadedFish.clone(true), 0.34) : createSimpleFishModel(THREE, 0.003);
+    const screenFish = loadedFish ? prepareFishModel(THREE, loadedFish, 320) : createSimpleFishModel(THREE, 1.7);
+    const xrFish = loadedFish ? prepareFishModel(THREE, loadedFish.clone(true), 0.46) : createSimpleFishModel(THREE, 0.003);
     screenRoot.add(screenFish);
     xrRoot.add(xrFish);
-    xrRoot.userData.baseRotationY = xrRoot.rotation.y;
 
     ar3D = {
       THREE,
@@ -1075,6 +1076,8 @@ async function initAr3D() {
       xrCamera,
       screenRoot,
       xrRoot,
+      screenFish,
+      xrFish,
       startedAt: performance.now()
     };
     arScreen.classList.add("three-ready");
@@ -1090,13 +1093,23 @@ async function initAr3D() {
 
 async function loadFishAsset(THREE, FBXLoader) {
   try {
-    const texture = await new THREE.TextureLoader().loadAsync(FISH_TEXTURE_URL);
-    texture.colorSpace = THREE.SRGBColorSpace;
+    const loader = new THREE.TextureLoader();
+    const [bodyTexture, eyeTexture, tailTexture] = await Promise.all([
+      loader.loadAsync(FISH_BODY_TEXTURE_URL),
+      loader.loadAsync(FISH_EYE_TEXTURE_URL),
+      loader.loadAsync(FISH_TAIL_TEXTURE_URL)
+    ]);
+    [bodyTexture, eyeTexture, tailTexture].forEach((texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+    });
+
     const model = await new FBXLoader().loadAsync(FISH_MODEL_URL);
     model.traverse((child) => {
       if (!child.isMesh) return;
+      const name = `${child.name || ""} ${child.material?.name || ""}`.toLowerCase();
+      const map = name.includes("eye") ? eyeTexture : name.includes("tail") ? tailTexture : bodyTexture;
       child.material = new THREE.MeshStandardMaterial({
-        map: texture,
+        map,
         roughness: 0.82,
         metalness: 0
       });
@@ -1121,6 +1134,7 @@ function prepareFishModel(THREE, model, targetSize) {
   model.scale.multiplyScalar(targetSize / maxAxis);
   wrapper.rotation.x = -0.12;
   wrapper.rotation.y = 0;
+  wrapper.rotation.z = Math.PI / 2;
   wrapper.userData.baseRotationX = wrapper.rotation.x;
   wrapper.userData.baseRotationY = wrapper.rotation.y;
   wrapper.userData.baseRotationZ = wrapper.rotation.z;
@@ -1272,6 +1286,7 @@ function placeFishOnDetectedPlane() {
   xrRoot.visible = true;
   xrRoot.userData.floatBaseX = xrRoot.position.x;
   xrRoot.userData.floatBaseY = xrRoot.position.y;
+  xrRoot.userData.floatBaseZ = xrRoot.position.z;
   xrPlaced = true;
   arScreen.classList.add("fish-placed");
   setCameraStatus("ar", "平面にぷかぷか中");
@@ -1334,15 +1349,14 @@ function animateAr3D(timestamp, frame) {
   ar3D.screenRoot.position.x = (ar3D.screenRoot.userData.baseX || 0) + screenSwimX;
   ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + screenFloatY + screenJumpY;
   ar3D.screenRoot.scale.setScalar((ar3D.screenRoot.userData.depthScale || 1) * (1 + Math.sin(t * 2.2) * 0.018 + jumpPulse(t, 4.2) * 0.045));
-  ar3D.screenRoot.rotation.x = -0.12 + Math.sin(t * 1.55) * 0.05;
-  ar3D.screenRoot.rotation.y = Math.sin(t * 1.2) * 0.18;
-  ar3D.screenRoot.rotation.z = Math.sin(t * 1.35) * 0.09 + screenJumpY * 0.0015;
+  animateFishPose(ar3D.screenFish, t, screenJumpY * 0.0015);
 
   if (ar3D.xrRoot.visible) {
     const xrJumpY = jumpPulse(t, 4.8) * 0.08;
     ar3D.xrRoot.position.x = (ar3D.xrRoot.userData.floatBaseX || ar3D.xrRoot.position.x) + Math.sin(t * 1.2) * 0.012;
     ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.018 + xrJumpY;
-    ar3D.xrRoot.rotation.y = (ar3D.xrRoot.userData.baseRotationY || 0) + Math.sin(t * 1.25) * 0.18 + xrJumpY * 1.7;
+    ar3D.xrRoot.position.z = ar3D.xrRoot.userData.floatBaseZ || ar3D.xrRoot.position.z;
+    animateFishPose(ar3D.xrFish, t, xrJumpY * 1.7);
   }
 
   ar3D.renderer.render(ar3D.scene, xrSession ? ar3D.xrCamera : ar3D.screenCamera);
@@ -1352,6 +1366,14 @@ function jumpPulse(time, interval) {
   const phase = (time % interval) / interval;
   if (phase > 0.22) return 0;
   return Math.sin((phase / 0.22) * Math.PI);
+}
+
+function animateFishPose(fish, time, jumpTilt = 0) {
+  if (!fish) return;
+  const halfTurn = Math.sin(time * 1.18) * (Math.PI / 2);
+  fish.rotation.x = (fish.userData.baseRotationX || 0) + Math.sin(time * 1.55) * 0.07;
+  fish.rotation.y = (fish.userData.baseRotationY || 0) + halfTurn + Math.sin(time * 3.2) * 0.08;
+  fish.rotation.z = (fish.userData.baseRotationZ || 0) + Math.sin(time * 1.35) * 0.11 + jumpTilt;
 }
 
 window.showScreen = showScreen;
