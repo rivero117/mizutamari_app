@@ -11,3 +11,7 @@ export function createTapFishOverlay(point, fishCount = 3) {
     rotation: index % 2 === 0 ? -8 : 8
   }));
 }
+
+export function chooseArPlacementMode(capabilities = {}) {
+  return capabilities.webXr && capabilities.hitTest ? "plane" : "tap";
+}

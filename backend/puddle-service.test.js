@@ -192,7 +192,7 @@ test("toMapPin returns the HOME popup contract", () => {
   });
 
   assert.equal(pin.popup.diameterCm, 80);
-  assert.equal(pin.popup.transparency, "clear");
+  assert.equal(pin.popup.transparency, 5);
   assert.equal(pin.popup.observedAt, "7/14");
   assert.match(pin.googleMapsUrl, /google\.com\/maps\/dir/);
 });

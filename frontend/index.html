@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>雨あと水族館</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-home-merge" />
   </head>
   <body>
     <main id="app">
@@ -96,46 +96,74 @@
       </section>
 
       <section id="screen-post" class="screen screen-form" data-screen="post" hidden>
-        <video id="postCamera" class="camera-preview" autoplay muted playsinline></video>
         <form class="post-card" id="postForm">
-          <h2 id="postTitle">投稿</h2>
-          <p id="placeText" class="status">現在地を使って投稿します。</p>
-
-          <label for="diameterInput">大きさ</label>
-          <div class="diameter-row">
-            <input id="diameterInput" type="number" min="1" max="1000" value="120" />
-            <span>cm</span>
+          <div class="post-top">
+            <button id="cancelPostBtn" class="icon-button" type="button" aria-label="戻る">‹</button>
+            <p id="placeText" class="post-location">位置情報が必要です</p>
           </div>
 
-          <label for="transparencyInput">透明度</label>
-          <select id="transparencyInput">
-            <option value="5">5</option>
-            <option value="4">4</option>
-            <option value="3" selected>3</option>
-            <option value="2">2</option>
-            <option value="1">1</option>
-          </select>
+          <section class="post-section" aria-label="写真">
+            <input id="photoInput" class="visually-hidden" type="file" accept="image/*" capture="environment" />
+            <input id="photoLibraryInput" class="visually-hidden" type="file" accept="image/*" />
+            <div class="photo-field">
+              <span id="photoLabel" class="photo-preview" aria-live="polite">写真</span>
+              <div class="photo-actions">
+                <button id="cameraPickBtn" class="subtle-button" type="button">撮影</button>
+                <button id="libraryPickBtn" class="subtle-button" type="button">フォルダ</button>
+              </div>
+            </div>
+          </section>
 
-          <label for="observedAtInput">観測日時</label>
-          <input id="observedAtInput" type="datetime-local" />
+          <section class="post-section" aria-label="大きさ">
+            <div class="size-options">
+              <label><input type="radio" name="size" value="100" />約1m以下</label>
+              <label><input type="radio" name="size" value="200" />約2m</label>
+              <label><input type="radio" name="size" value="300" />約3m</label>
+              <label><input type="radio" name="size" value="400" />約4m以上</label>
+            </div>
+          </section>
 
-          <label for="reviewInput">コメント</label>
-          <textarea id="reviewInput" placeholder="水たまりの様子"></textarea>
+          <section class="post-section" aria-label="透明度">
+            <input id="transparencyInput" type="hidden" value="5" />
+            <div id="transparencyBars" class="transparency-bars" role="slider" aria-label="透明度" aria-valuemin="1" aria-valuemax="10" aria-valuenow="1" tabindex="0">
+              <button type="button" data-level="1"></button>
+              <button type="button" data-level="2"></button>
+              <button type="button" data-level="3"></button>
+              <button type="button" data-level="4"></button>
+              <button type="button" data-level="5"></button>
+              <button type="button" data-level="6"></button>
+              <button type="button" data-level="7"></button>
+              <button type="button" data-level="8"></button>
+              <button type="button" data-level="9"></button>
+              <button type="button" data-level="10"></button>
+            </div>
+          </section>
 
-          <label for="photoInput">写真</label>
-          <input id="photoInput" type="file" accept="image/*" capture="environment" />
+          <section class="post-section" aria-label="観測日時">
+            <input id="observedAtInput" type="hidden" />
+            <div class="date-wheel">
+              <select id="observedMonthInput" aria-label="月"></select>
+              <select id="observedDayInput" aria-label="日"></select>
+              <select id="observedHourInput" aria-label="時"></select>
+              <select id="observedMinuteInput" aria-label="分"></select>
+            </div>
+          </section>
 
           <div class="modal-actions">
-            <button id="cancelPostBtn" class="danger" type="button">やめる</button>
-            <button type="submit">投稿する</button>
+            <button id="submitPostBtn" class="post-submit" type="submit" disabled>投稿</button>
           </div>
         </form>
       </section>
 
       <section id="screen-ar" class="screen screen-ar" data-screen="ar" hidden>
         <video id="arCamera" class="camera-preview" autoplay muted playsinline></video>
-        <div class="ar-fish" aria-hidden="true">🐟</div>
-        <p id="arStatus" class="ar-status">AR</p>
+        <canvas id="arCanvas" class="ar-canvas" aria-hidden="true"></canvas>
+        <div id="arFallbackFish" class="ar-fish" aria-hidden="true">🐟</div>
+        <div id="arReticle" class="ar-reticle" aria-hidden="true"></div>
+        <div class="ar-copy">
+          <p id="arStatus" class="ar-status">AR</p>
+          <p id="arHint" class="ar-hint">床や水たまりにスマホを向けてください</p>
+        </div>
       </section>
 
       <footer id="app-footer" aria-label="画面切り替え">
@@ -146,6 +174,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260723-1"></script>
+    <script src="./app.js?v=20260723-home-merge"></script>
   </body>
 </html>

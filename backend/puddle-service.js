@@ -156,20 +156,22 @@ function filterPuddles(puddles, query = {}, now = new Date()) {
 }
 
 function toMapPin(puddle) {
+  const transparency = normalizeTransparency(puddle.transparency, puddle.turbidity);
+
   return {
     id: puddle.id,
     latitude: puddle.latitude,
     longitude: puddle.longitude,
     size: puddle.size,
     diameterCm: puddle.diameterCm,
-    transparency: puddle.transparency || puddle.turbidity,
+    transparency,
     turbidity: puddle.turbidity,
     observedAt: puddle.observedAt || puddle.createdAt || "",
     googleMapsUrl: puddle.googleMapsUrl || makeGoogleMapsDirectionsUrl(puddle),
     popup: {
       size: puddle.size,
       diameterCm: puddle.diameterCm,
-      transparency: puddle.transparency || puddle.turbidity,
+      transparency,
       observedAt: puddle.observedAt || puddle.createdAt || ""
     }
   };
