@@ -960,15 +960,6 @@ async function startCamera(mode, options = {}) {
   }
 
   cameraStarting = true;
-  if (mode === "ar" && !options.skipPlaneDetection) {
-    setCameraStatus("ar", "平面検知を準備中");
-    const planeArStarted = await startPlaneDetectionAr();
-    if (planeArStarted) {
-      cameraStarting = false;
-      return;
-    }
-  }
-
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     setCameraStatus(mode, "このブラウザではカメラが使えません。");
     cameraStarting = false;
@@ -989,7 +980,7 @@ async function startCamera(mode, options = {}) {
     setCameraStatus(
       mode,
       mode === "ar"
-        ? `平面検知非対応 ${xrLastFailure || "この環境では未検出"} タップで仮配置`
+        ? "カメラ起動中 タップで平面検知 / 仮配置"
         : "カメラ起動中"
     );
   } catch {
@@ -1339,7 +1330,7 @@ async function startPlaneDetectionAr() {
     xrPlaced = false;
 
     ar3D.screenRoot.visible = false;
-    ar3D.xrRoot.visible = false;
+    showXrPreviewFish();
     arScreen.classList.add("xr-on");
     setCameraStatus("ar", "平面を探しています");
     setArHint("床や水面にスマホを向けてタップ");
@@ -1375,6 +1366,17 @@ function cleanupPlaneDetectionAr() {
   arScreen.classList.remove("xr-on");
 }
 
+function showXrPreviewFish() {
+  if (!ar3D?.xrRoot) return;
+  ar3D.xrRoot.position.set(0, -0.18, -1.05);
+  ar3D.xrRoot.rotation.set(-Math.PI / 2, 0, 0);
+  ar3D.xrRoot.visible = true;
+  ar3D.xrRoot.userData.floatBaseX = ar3D.xrRoot.position.x;
+  ar3D.xrRoot.userData.floatBaseY = ar3D.xrRoot.position.y;
+  ar3D.xrRoot.userData.floatBaseZ = ar3D.xrRoot.position.z;
+  ar3D.xrRoot.userData.previewPlacement = true;
+}
+
 function placeFishOnDetectedPlane() {
   if (!xrHitMatrix || !ar3D?.xrRoot) {
     setCameraStatus("ar", "平面を探しています");
@@ -1395,6 +1397,7 @@ function placeFishOnDetectedPlane() {
   xrRoot.userData.floatBaseX = xrRoot.position.x;
   xrRoot.userData.floatBaseY = xrRoot.position.y;
   xrRoot.userData.floatBaseZ = xrRoot.position.z;
+  xrRoot.userData.previewPlacement = false;
   xrPlaced = true;
   arScreen.classList.add("fish-placed");
   setCameraStatus("ar", "平面にぷかぷか中");
@@ -1547,13 +1550,16 @@ postForm.addEventListener("submit", submitPost);
 arScreen.addEventListener("click", async (event) => {
   if (event.target.closest("button")) return;
   if (!xrSession && navigator.xr?.requestSession) {
-    stopActiveCameraStream();
-    arCamera.srcObject = null;
     setCameraStatus("ar", "平面検知を再試行中");
     setArHint("床や水面にスマホを向けてください");
     const planeArStarted = await startPlaneDetectionAr();
-    if (planeArStarted) return;
-    await startCamera("ar", { skipPlaneDetection: true });
+    if (planeArStarted) {
+      stopActiveCameraStream();
+      arCamera.srcObject = null;
+      placeFishOnDetectedPlane();
+      return;
+    }
+    setCameraStatus("ar", `平面検知非対応 ${xrLastFailure || "この環境では未検出"} タップで仮配置`);
   }
   positionArFish(event.clientX, event.clientY, true);
 });
