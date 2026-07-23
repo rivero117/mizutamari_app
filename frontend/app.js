@@ -1138,7 +1138,7 @@ function prepareFishModel(THREE, model, targetSize) {
   model.scale.multiplyScalar(targetSize / maxAxis);
   wrapper.rotation.x = -0.12;
   wrapper.rotation.y = 0;
-  wrapper.rotation.z = 0;
+  wrapper.rotation.z = -Math.PI / 2;
   wrapper.userData.baseRotationX = wrapper.rotation.x;
   wrapper.userData.baseRotationY = wrapper.rotation.y;
   wrapper.userData.baseRotationZ = wrapper.rotation.z;
