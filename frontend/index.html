@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>雨あと水族館</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260715-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-1" />
   </head>
   <body>
     <main id="app">
@@ -23,6 +23,48 @@
             <strong id="puddleCount">0</strong>
             <span>spots</span>
           </div>
+
+          <div class="home-toolbar">
+            <button id="filterToggleBtn" class="icon-button" type="button" aria-expanded="false" aria-controls="homeFilterPanel" title="絞り込み">🔎</button>
+            <span id="filterSummary" class="filter-summary">全件表示</span>
+          </div>
+
+          <form id="homeFilterPanel" class="filter-panel" hidden>
+            <div class="filter-grid">
+              <label for="minSizeInput">
+                <span>最小</span>
+                <input id="minSizeInput" type="number" min="1" max="1000" inputmode="numeric" placeholder="cm" />
+              </label>
+              <label for="maxSizeInput">
+                <span>最大</span>
+                <input id="maxSizeInput" type="number" min="1" max="1000" inputmode="numeric" placeholder="cm" />
+              </label>
+              <label for="transparencyFilterInput">
+                <span>透明度</span>
+                <select id="transparencyFilterInput">
+                  <option value="">すべて</option>
+                  <option value="5">5</option>
+                  <option value="4">4</option>
+                  <option value="3">3</option>
+                  <option value="2">2</option>
+                  <option value="1">1</option>
+                </select>
+              </label>
+              <label for="observedDaysInput">
+                <span>観測</span>
+                <select id="observedDaysInput">
+                  <option value="7">7日以内</option>
+                  <option value="3">3日以内</option>
+                  <option value="1">24時間以内</option>
+                  <option value="">すべて</option>
+                </select>
+              </label>
+            </div>
+            <div class="filter-actions">
+              <button id="resetFiltersBtn" class="secondary" type="button">リセット</button>
+              <button type="submit">適用</button>
+            </div>
+          </form>
 
           <div class="segmented" role="group" aria-label="表示モード">
             <button id="playViewBtn" class="active" type="button">あそぶ</button>
@@ -104,6 +146,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260715-4"></script>
+    <script src="./app.js?v=20260723-1"></script>
   </body>
 </html>

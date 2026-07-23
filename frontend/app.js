@@ -14,6 +14,14 @@ const sourceBadge = document.getElementById("sourceBadge");
 const puddleCount = document.getElementById("puddleCount");
 const playViewBtn = document.getElementById("playViewBtn");
 const mapViewBtn = document.getElementById("mapViewBtn");
+const filterToggleBtn = document.getElementById("filterToggleBtn");
+const filterSummary = document.getElementById("filterSummary");
+const homeFilterPanel = document.getElementById("homeFilterPanel");
+const minSizeInput = document.getElementById("minSizeInput");
+const maxSizeInput = document.getElementById("maxSizeInput");
+const transparencyFilterInput = document.getElementById("transparencyFilterInput");
+const observedDaysInput = document.getElementById("observedDaysInput");
+const resetFiltersBtn = document.getElementById("resetFiltersBtn");
 const clickModeBtn = document.getElementById("clickModeBtn");
 const locateBtn = document.getElementById("locateBtn");
 const addHereBtn = document.getElementById("addHereBtn");
@@ -40,8 +48,15 @@ let apiAvailable = false;
 let mapReady = false;
 let activeCameraStream = null;
 let puddles = [];
+let allHomePuddles = [];
 let officialPuddles = [];
 let remoteUserPuddles = [];
+let homeFilters = {
+  minSize: "",
+  maxSize: "",
+  transparency: "",
+  observedDays: "7"
+};
 
 const markers = [];
 
@@ -105,6 +120,7 @@ async function loadPuddles() {
     officialPuddles = apiPuddles.filter((puddle) => puddle.source !== "user");
     remoteUserPuddles = apiPuddles.filter((puddle) => puddle.source === "user");
     puddles = mergePuddleLists(officialPuddles, [...remoteUserPuddles, ...localPuddles]);
+    allHomePuddles = puddles;
     apiAvailable = true;
     sourceBadge.textContent = "API";
   } catch {
@@ -112,6 +128,7 @@ async function loadPuddles() {
     officialPuddles = official;
     remoteUserPuddles = [];
     puddles = mergePuddleLists(official, user);
+    allHomePuddles = puddles;
     apiAvailable = false;
     sourceBadge.textContent = "Static";
   }
@@ -315,6 +332,8 @@ function geoJsonToPuddles(geojson) {
       const props = feature.properties || {};
       const diameterCm = parseDiameterCm(props["直径"]);
       const size = diameterToSize(diameterCm);
+      const turbidity = muddinessToTurbidity(props["濁り具合"]);
+      const observedAt = parseObservedDate(props["観測日時"])?.toISOString() || "";
 
       return {
         id: `geojson_puddle_${props["No"] || index + 1}`,
@@ -322,9 +341,11 @@ function geoJsonToPuddles(geojson) {
         longitude,
         latitude,
         createdAt: props["観測日時"] || "",
+        observedAt,
         size,
         diameterCm,
-        turbidity: muddinessToTurbidity(props["濁り具合"]),
+        turbidity,
+        transparency: normalizeTransparency(undefined, turbidity),
         review: props["水たまりのレビュー"] || "",
         photoDataUrl: props["画像"] || "",
         contestEntry: false,
@@ -372,6 +393,7 @@ function makePuddleGeoJson() {
 function updateDataBox() {
   puddleCount.textContent = String(puddles.length);
   dataBox.textContent = JSON.stringify(makePuddleGeoJson(), null, 2);
+  updateFilterSummary();
 }
 
 function addGeoJsonLayers() {
@@ -477,9 +499,11 @@ function setLayerVisibility(layerId, visibility) {
 
 function renderPins(posts = loadPosts()) {
   const visibleUserPuddles = posts.filter(isVisiblePost).map(specPostToPuddle);
-  const basePuddles = puddles.filter((puddle) => puddle.source !== "user");
+  const baseSource = allHomePuddles.length > 0 ? allHomePuddles : puddles;
+  const basePuddles = baseSource.filter((puddle) => puddle.source !== "user");
   const fallbackBase = basePuddles.length > 0 ? basePuddles : officialPuddles;
-  puddles = mergePuddleLists(fallbackBase, visibleUserPuddles);
+  allHomePuddles = mergePuddleLists(fallbackBase, visibleUserPuddles);
+  puddles = applyHomeFilters(allHomePuddles);
   renderPuddles();
   updateGeoJsonLayer();
   updateDataBox();
@@ -506,6 +530,72 @@ function isVisiblePost(post, now = new Date()) {
   const start = new Date(now);
   start.setDate(start.getDate() - 7);
   return observedAt >= start && observedAt <= now;
+}
+
+function applyHomeFilters(items) {
+  return items.filter((puddle) => {
+    const diameterCm = Number(puddle.diameterCm);
+    if ((homeFilters.minSize || homeFilters.maxSize) && !Number.isFinite(diameterCm)) return false;
+    if (homeFilters.minSize && diameterCm < Number(homeFilters.minSize)) return false;
+    if (homeFilters.maxSize && diameterCm > Number(homeFilters.maxSize)) return false;
+    if (homeFilters.transparency && Number(puddle.transparency) !== Number(homeFilters.transparency)) {
+      return false;
+    }
+    if (
+      homeFilters.observedDays &&
+      !isPuddleObservedWithinDays(puddle, Number(homeFilters.observedDays))
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function isPuddleObservedWithinDays(puddle, days, now = new Date()) {
+  const observedAt = parseObservedDate(puddle.observedAt || puddle.createdAt, now);
+  if (!observedAt) return false;
+  const start = new Date(now);
+  start.setDate(start.getDate() - Math.max(1, Number(days || 7)));
+  return observedAt >= start && observedAt <= now;
+}
+
+function parseObservedDate(value, now = new Date()) {
+  if (!value) return null;
+  const text = String(value).trim();
+  const monthDay = text.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (monthDay) {
+    const parsed = new Date(now.getFullYear(), Number(monthDay[1]) - 1, Number(monthDay[2]), 12, 0, 0);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function syncHomeFiltersFromInputs() {
+  homeFilters = {
+    minSize: minSizeInput.value,
+    maxSize: maxSizeInput.value,
+    transparency: transparencyFilterInput.value,
+    observedDays: observedDaysInput.value
+  };
+}
+
+function resetHomeFilters() {
+  minSizeInput.value = "";
+  maxSizeInput.value = "";
+  transparencyFilterInput.value = "";
+  observedDaysInput.value = "7";
+  syncHomeFiltersFromInputs();
+  refreshHome();
+}
+
+function updateFilterSummary() {
+  const parts = [];
+  if (homeFilters.minSize) parts.push(`${homeFilters.minSize}cm以上`);
+  if (homeFilters.maxSize) parts.push(`${homeFilters.maxSize}cm以下`);
+  if (homeFilters.transparency) parts.push(`透明度${homeFilters.transparency}`);
+  if (homeFilters.observedDays) parts.push(`${homeFilters.observedDays}日以内`);
+  filterSummary.textContent = parts.length > 0 ? parts.join(" / ") : "全件表示";
 }
 
 function makePuddleElement(puddle) {
@@ -581,13 +671,21 @@ function showPuddlePopup(puddle) {
     : "";
   const html = `
     <strong>${puddle.contestEntry ? "🏆 " : ""}水たまり</strong><br>
-    観測日時：${escapeHtml(puddle.createdAt || "不明")}<br>
+    観測日時：${escapeHtml(puddle.observedAt || puddle.createdAt || "不明")}<br>
     大きさ：${escapeHtml(puddle.diameterCm ? `直径 ${puddle.diameterCm}cm` : "不明")}<br>
-    透明度：${escapeHtml(labelTurbidity(puddle.turbidity))}<br>
+    透明度：${escapeHtml(formatTransparency(puddle))}<br>
     ${photoHtml}
     <button class="directions-link" type="button" onclick="openGoogleMaps(${Number(puddle.latitude)}, ${Number(puddle.longitude)})">Google Mapで経路を見る</button>
   `;
   new maplibregl.Popup({ offset: 28 }).setLngLat([puddle.longitude, puddle.latitude]).setHTML(html).addTo(map);
+}
+
+function formatTransparency(puddle) {
+  const transparency = Number(puddle.transparency);
+  if (Number.isInteger(transparency) && transparency >= 1 && transparency <= 5) {
+    return String(transparency);
+  }
+  return labelTurbidity(puddle.turbidity);
 }
 
 function normalizePopupPhotoUrl(value) {
@@ -937,6 +1035,24 @@ window.stopCamera = stopCamera;
 
 navButtons.forEach((button) => {
   button.addEventListener("click", () => showScreen(button.dataset.nav));
+});
+
+filterToggleBtn.addEventListener("click", () => {
+  const expanded = filterToggleBtn.getAttribute("aria-expanded") === "true";
+  filterToggleBtn.setAttribute("aria-expanded", String(!expanded));
+  homeFilterPanel.hidden = expanded;
+});
+
+homeFilterPanel.addEventListener("submit", (event) => {
+  event.preventDefault();
+  syncHomeFiltersFromInputs();
+  refreshHome();
+  statusEl.textContent = `${puddles.length}個の水たまりを表示しています。`;
+});
+
+resetFiltersBtn.addEventListener("click", () => {
+  resetHomeFilters();
+  statusEl.textContent = `${puddles.length}個の水たまりを表示しています。`;
 });
 
 playViewBtn.addEventListener("click", () => setView("play", true));

@@ -164,6 +164,82 @@ h1 {
   font-size: 24px;
 }
 
+.home-toolbar {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.icon-button {
+  width: 48px;
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: none;
+  border: 2px solid rgba(43, 186, 165, 0.25);
+}
+
+.icon-button[aria-expanded="true"] {
+  background: var(--aqua);
+  color: white;
+  box-shadow: 0 5px 0 rgba(18, 57, 54, 0.16);
+}
+
+.filter-summary {
+  min-width: 0;
+  color: #35635e;
+  font-size: 12px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-panel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.filter-panel[hidden] {
+  display: none !important;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.filter-grid label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #35635e;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-actions button {
+  border-radius: 8px;
+}
+
 .segmented,
 .actions {
   display: grid;
@@ -210,10 +286,11 @@ h1 {
 select,
 textarea,
 input[type="file"],
-input[type="number"] {
+input[type="number"],
+input[type="datetime-local"] {
   width: 100%;
   border: 2px solid rgba(43, 186, 165, 0.35);
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 10px;
   background: var(--white);
   color: var(--ink);
@@ -587,6 +664,10 @@ textarea {
 
   .actions button {
     grid-column: 1 / -1;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr;
   }
 
   .data-box {
