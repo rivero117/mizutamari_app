@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>雨あと水族館</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260715-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-ar-plane" />
   </head>
   <body>
     <main id="app">
@@ -92,8 +92,13 @@
 
       <section id="screen-ar" class="screen screen-ar" data-screen="ar" hidden>
         <video id="arCamera" class="camera-preview" autoplay muted playsinline></video>
-        <div class="ar-fish" aria-hidden="true">🐟</div>
-        <p id="arStatus" class="ar-status">AR</p>
+        <canvas id="arCanvas" class="ar-canvas" aria-hidden="true"></canvas>
+        <div id="arFallbackFish" class="ar-fish" aria-hidden="true">🐟</div>
+        <div id="arReticle" class="ar-reticle" aria-hidden="true"></div>
+        <div class="ar-copy">
+          <p id="arStatus" class="ar-status">AR</p>
+          <p id="arHint" class="ar-hint">床や水たまりにスマホを向けてください</p>
+        </div>
       </section>
 
       <footer id="app-footer" aria-label="画面切り替え">
@@ -104,6 +109,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260715-3"></script>
+    <script src="./app.js?v=20260723-ar-plane"></script>
   </body>
 </html>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createTapFishOverlay } from "./ar/index.mjs";
+import { chooseArPlacementMode, createTapFishOverlay } from "./ar/index.mjs";
 import {
   filterHomePosts,
   makeGoogleMapsDirectionsUrl
@@ -63,4 +63,10 @@ test("AR creates a bounded tap-position fish overlay", () => {
   assert.equal(fish.length, 3);
   assert.ok(fish.every((item) => item.x >= 0 && item.x <= 1));
   assert.ok(fish.every((item) => item.y >= 0 && item.y <= 1));
+});
+
+test("AR chooses plane placement only when WebXR hit-test is available", () => {
+  assert.equal(chooseArPlacementMode({ webXr: true, hitTest: true }), "plane");
+  assert.equal(chooseArPlacementMode({ webXr: true, hitTest: false }), "tap");
+  assert.equal(chooseArPlacementMode({ webXr: false, hitTest: true }), "tap");
 });

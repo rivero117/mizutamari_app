@@ -4,6 +4,10 @@ const GEOJSON_URL = "../data/mizutamari.geojson";
 const STORAGE_KEY = "mizutaPosts";
 const LEGACY_STORAGE_KEY = "ameato_user_puddle_posts_v11";
 const START_CENTER = [134.3612, 33.9742];
+const THREE_URL = "https://esm.sh/three@0.160.0";
+const FBX_LOADER_URL = "https://esm.sh/three@0.160.0/examples/jsm/loaders/FBXLoader.js";
+const FISH_MODEL_URL = "./assets/fish/sacabambaspis.fbx";
+const FISH_TEXTURE_URL = "./assets/fish/texture.png";
 
 const screens = Array.from(document.querySelectorAll("[data-screen]"));
 const navButtons = Array.from(document.querySelectorAll("[data-nav]"));
@@ -29,6 +33,11 @@ const photoInput = document.getElementById("photoInput");
 const cancelPostBtn = document.getElementById("cancelPostBtn");
 const postCamera = document.getElementById("postCamera");
 const arCamera = document.getElementById("arCamera");
+const arCanvas = document.getElementById("arCanvas");
+const arFallbackFish = document.getElementById("arFallbackFish");
+const arReticle = document.getElementById("arReticle");
+const arHintEl = document.getElementById("arHint");
+const arScreen = document.getElementById("screen-ar");
 
 let currentView = "play";
 let clickMode = false;
@@ -39,6 +48,14 @@ let lastKnownPosition = null;
 let apiAvailable = false;
 let mapReady = false;
 let activeCameraStream = null;
+let cameraStarting = false;
+let ar3D = null;
+let xrSession = null;
+let xrViewerSpace = null;
+let xrRefSpace = null;
+let xrHitTestSource = null;
+let xrHitMatrix = null;
+let xrPlaced = false;
 let puddles = [];
 let officialPuddles = [];
 
@@ -854,8 +871,25 @@ function refreshHome() {
 
 async function startCamera(mode) {
   const target = mode === "ar" ? arCamera : postCamera;
-  if (!target || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  if (cameraStarting || (mode === "ar" && xrSession)) return;
+  if (!target) {
     setCameraStatus(mode, "このブラウザではカメラが使えません。");
+    return;
+  }
+
+  cameraStarting = true;
+  if (mode === "ar") {
+    setCameraStatus("ar", "平面検知を準備中");
+    const planeArStarted = await startPlaneDetectionAr();
+    if (planeArStarted) {
+      cameraStarting = false;
+      return;
+    }
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setCameraStatus(mode, "このブラウザではカメラが使えません。");
+    cameraStarting = false;
     return;
   }
 
@@ -866,13 +900,24 @@ async function startCamera(mode) {
     });
     target.srcObject = activeCameraStream;
     await target.play();
-    setCameraStatus(mode, mode === "ar" ? "AR" : "カメラ起動中");
+    if (mode === "ar") {
+      await initAr3D();
+      positionArFish(window.innerWidth / 2, window.innerHeight * 0.56, false);
+    }
+    setCameraStatus(mode, mode === "ar" ? "水たまりの位置をタップ" : "カメラ起動中");
   } catch {
     setCameraStatus(mode, "カメラを起動できませんでした。");
+  } finally {
+    cameraStarting = false;
   }
 }
 
 function stopCamera() {
+  if (xrSession) {
+    const session = xrSession;
+    cleanupPlaneDetectionAr();
+    session.end().catch(() => {});
+  }
   if (activeCameraStream) {
     activeCameraStream.getTracks().forEach((track) => track.stop());
     activeCameraStream = null;
@@ -880,11 +925,305 @@ function stopCamera() {
   [postCamera, arCamera].forEach((video) => {
     if (video) video.srcObject = null;
   });
+  arScreen.classList.remove("xr-on", "fish-placed");
+  setArHint("床や水たまりにスマホを向けてください");
 }
 
 function setCameraStatus(mode, message) {
   if (mode === "ar" && arStatusEl) arStatusEl.textContent = message;
   if (mode === "post" && placeText) placeText.textContent = message;
+}
+
+function setArHint(message) {
+  if (arHintEl) arHintEl.textContent = message;
+}
+
+async function initAr3D() {
+  if (ar3D || !arCanvas) return;
+
+  try {
+    const [THREE, { FBXLoader }] = await Promise.all([
+      import(THREE_URL),
+      import(FBX_LOADER_URL)
+    ]);
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      canvas: arCanvas
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    const scene = new THREE.Scene();
+    const screenCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+    screenCamera.position.z = 420;
+    const xrCamera = new THREE.PerspectiveCamera(60, 1, 0.01, 20);
+
+    const screenRoot = new THREE.Group();
+    const xrRoot = new THREE.Group();
+    xrRoot.visible = false;
+    scene.add(screenRoot, xrRoot);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.85));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    keyLight.position.set(120, 160, 240);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x9ce4ff, 0.9);
+    fillLight.position.set(-160, -70, 180);
+    scene.add(fillLight);
+
+    const loadedFish = await loadFishAsset(THREE, FBXLoader);
+    const screenFish = loadedFish ? prepareFishModel(THREE, loadedFish, 220) : createSimpleFishModel(THREE, 1.7);
+    const xrFish = loadedFish ? prepareFishModel(THREE, loadedFish.clone(true), 0.34) : createSimpleFishModel(THREE, 0.003);
+    screenRoot.add(screenFish);
+    xrRoot.add(xrFish);
+    xrRoot.userData.baseRotationY = xrRoot.rotation.y;
+
+    ar3D = {
+      THREE,
+      renderer,
+      scene,
+      screenCamera,
+      xrCamera,
+      screenRoot,
+      xrRoot,
+      startedAt: performance.now()
+    };
+    arScreen.classList.add("three-ready");
+
+    window.addEventListener("resize", resizeAr3D);
+    resizeAr3D();
+    renderer.setAnimationLoop(animateAr3D);
+  } catch (error) {
+    console.warn("AR fish could not be initialized.", error);
+    ar3D = null;
+  }
+}
+
+async function loadFishAsset(THREE, FBXLoader) {
+  try {
+    const texture = await new THREE.TextureLoader().loadAsync(FISH_TEXTURE_URL);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const model = await new FBXLoader().loadAsync(FISH_MODEL_URL);
+    model.traverse((child) => {
+      if (!child.isMesh) return;
+      child.material = new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.82,
+        metalness: 0
+      });
+    });
+    return model;
+  } catch (error) {
+    console.warn("Sacabambaspis model could not be loaded. Using fallback fish.", error);
+    return null;
+  }
+}
+
+function prepareFishModel(THREE, model, targetSize) {
+  const wrapper = new THREE.Group();
+  wrapper.add(model);
+
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+
+  model.position.sub(center);
+  model.scale.multiplyScalar(targetSize / maxAxis);
+  wrapper.rotation.x = -0.12;
+  wrapper.rotation.y = Math.PI;
+  wrapper.userData.baseRotationY = wrapper.rotation.y;
+  return wrapper;
+}
+
+function createSimpleFishModel(THREE, scale) {
+  const group = new THREE.Group();
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xffd56f, roughness: 0.78 });
+  const finMaterial = new THREE.MeshStandardMaterial({ color: 0xffe59a, roughness: 0.76 });
+  const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x47330b, roughness: 0.6 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(30, 32, 18), bodyMaterial);
+  body.scale.set(1.45, 0.9, 0.62);
+  group.add(body);
+
+  const tailTop = new THREE.Mesh(new THREE.SphereGeometry(17, 24, 14), finMaterial);
+  tailTop.position.set(42, 12, 0);
+  tailTop.scale.set(0.82, 0.98, 0.45);
+  group.add(tailTop);
+
+  const tailBottom = tailTop.clone();
+  tailBottom.position.y = -12;
+  group.add(tailBottom);
+
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(3.6, 16, 10), eyeMaterial);
+  eye.position.set(-26, 4, 20);
+  group.add(eye);
+
+  group.scale.setScalar(scale);
+  group.rotation.x = -0.12;
+  group.rotation.y = Math.PI;
+  group.userData.baseRotationY = group.rotation.y;
+  return group;
+}
+
+function resizeAr3D() {
+  if (!ar3D) return;
+  const rect = arCanvas.getBoundingClientRect();
+  ar3D.renderer.setSize(rect.width, rect.height, false);
+  ar3D.screenCamera.left = -rect.width / 2;
+  ar3D.screenCamera.right = rect.width / 2;
+  ar3D.screenCamera.top = rect.height / 2;
+  ar3D.screenCamera.bottom = -rect.height / 2;
+  ar3D.screenCamera.updateProjectionMatrix();
+  ar3D.xrCamera.aspect = rect.width / rect.height;
+  ar3D.xrCamera.updateProjectionMatrix();
+}
+
+async function startPlaneDetectionAr() {
+  if (!navigator.xr?.isSessionSupported) return false;
+  if (!(await navigator.xr.isSessionSupported("immersive-ar"))) return false;
+
+  await initAr3D();
+  if (!ar3D?.renderer) return false;
+
+  try {
+    const sessionInit = {
+      requiredFeatures: ["hit-test"],
+      optionalFeatures: ["local-floor", "dom-overlay"],
+      domOverlay: { root: document.getElementById("app") }
+    };
+    xrSession = await navigator.xr.requestSession("immersive-ar", sessionInit);
+    ar3D.renderer.xr.enabled = true;
+    ar3D.renderer.xr.setReferenceSpaceType("local");
+    await ar3D.renderer.xr.setSession(xrSession);
+
+    xrViewerSpace = await xrSession.requestReferenceSpace("viewer");
+    xrRefSpace = await xrSession.requestReferenceSpace("local");
+    xrHitTestSource = await xrSession.requestHitTestSource({ space: xrViewerSpace });
+    xrHitMatrix = new ar3D.THREE.Matrix4();
+    xrPlaced = false;
+
+    ar3D.screenRoot.visible = false;
+    ar3D.xrRoot.visible = false;
+    arScreen.classList.add("xr-on");
+    setCameraStatus("ar", "平面を探しています");
+    setArHint("床や水面にスマホを向けてタップ");
+
+    xrSession.addEventListener("select", placeFishOnDetectedPlane);
+    xrSession.addEventListener("end", cleanupPlaneDetectionAr);
+    return true;
+  } catch (error) {
+    console.warn("WebXR plane hit-test is unavailable. Camera fallback is active.", error);
+    cleanupPlaneDetectionAr();
+    return false;
+  }
+}
+
+function cleanupPlaneDetectionAr() {
+  if (xrSession) {
+    xrSession.removeEventListener("select", placeFishOnDetectedPlane);
+    xrSession.removeEventListener("end", cleanupPlaneDetectionAr);
+  }
+  xrSession = null;
+  xrViewerSpace = null;
+  xrRefSpace = null;
+  xrHitTestSource = null;
+  xrHitMatrix = null;
+  xrPlaced = false;
+  if (ar3D?.renderer) {
+    ar3D.renderer.xr.enabled = false;
+    ar3D.screenRoot.visible = true;
+    ar3D.xrRoot.visible = false;
+  }
+  arScreen.classList.remove("xr-on");
+}
+
+function placeFishOnDetectedPlane() {
+  if (!xrHitMatrix || !ar3D?.xrRoot) {
+    setCameraStatus("ar", "平面を探しています");
+    return;
+  }
+
+  const { THREE, xrRoot } = ar3D;
+  const position = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  xrHitMatrix.decompose(position, quaternion, scale);
+
+  xrRoot.position.copy(position);
+  xrRoot.position.y += 0.018;
+  xrRoot.quaternion.copy(quaternion);
+  xrRoot.rotateX(-Math.PI / 2);
+  xrRoot.visible = true;
+  xrRoot.userData.floatBaseY = xrRoot.position.y;
+  xrPlaced = true;
+  arScreen.classList.add("fish-placed");
+  setCameraStatus("ar", "平面にぷかぷか中");
+  setArHint("別の平面をタップで移動");
+}
+
+function positionArFish(x, y, shouldLock = true) {
+  if (xrSession) {
+    placeFishOnDetectedPlane();
+    return;
+  }
+
+  const rect = arScreen.getBoundingClientRect();
+  const left = Math.max(64, Math.min(x - rect.left, rect.width - 64));
+  const top = Math.max(118, Math.min(y - rect.top, rect.height - 118));
+  const depthScale = 0.82 + Math.min(0.32, Math.max(0, (top - 140) / rect.height) * 0.62);
+
+  if (arFallbackFish) {
+    arFallbackFish.style.left = `${left}px`;
+    arFallbackFish.style.top = `${top}px`;
+    arFallbackFish.style.setProperty("--ar-fish-scale", depthScale.toFixed(3));
+  }
+  if (arReticle) {
+    arReticle.style.left = `${left}px`;
+    arReticle.style.top = `${top + 18}px`;
+  }
+  if (ar3D?.screenRoot) {
+    ar3D.screenRoot.userData.baseX = left - rect.width / 2;
+    ar3D.screenRoot.userData.baseY = rect.height / 2 - top;
+    ar3D.screenRoot.userData.depthScale = depthScale;
+  }
+
+  if (shouldLock) {
+    arScreen.classList.add("fish-placed");
+    setCameraStatus("ar", "仮配置でぷかぷか中");
+    setArHint("もう一度タップで移動");
+  }
+}
+
+function animateAr3D(timestamp, frame) {
+  if (!ar3D) return;
+  const t = ((timestamp || performance.now()) - ar3D.startedAt) / 1000;
+
+  if (frame && xrHitTestSource && xrRefSpace) {
+    const hitTestResults = frame.getHitTestResults(xrHitTestSource);
+    if (hitTestResults.length) {
+      const hitPose = hitTestResults[0].getPose(xrRefSpace);
+      if (hitPose) {
+        xrHitMatrix.fromArray(hitPose.transform.matrix);
+        if (!xrPlaced) setCameraStatus("ar", "平面を検知 タップで配置");
+      }
+    } else if (!xrPlaced) {
+      setCameraStatus("ar", "平面を探しています");
+    }
+  }
+
+  ar3D.screenRoot.position.x = ar3D.screenRoot.userData.baseX || 0;
+  ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + Math.sin(t * 1.9) * 7;
+  ar3D.screenRoot.scale.setScalar(ar3D.screenRoot.userData.depthScale || 1);
+  ar3D.screenRoot.rotation.z = Math.sin(t * 1.35) * 0.045;
+
+  if (ar3D.xrRoot.visible) {
+    ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.012;
+    ar3D.xrRoot.rotation.y = (ar3D.xrRoot.userData.baseRotationY || 0) + Math.sin(t * 1.25) * 0.08;
+  }
+
+  ar3D.renderer.render(ar3D.scene, xrSession ? ar3D.xrCamera : ar3D.screenCamera);
 }
 
 window.showScreen = showScreen;
@@ -907,6 +1246,10 @@ addHereBtn.addEventListener("click", locateUserAndOpenForm);
 clearBtn.addEventListener("click", clearUserPuddles);
 cancelPostBtn.addEventListener("click", closePostForm);
 postForm.addEventListener("submit", submitPost);
+arScreen.addEventListener("click", (event) => {
+  if (event.target.closest("button")) return;
+  positionArFish(event.clientX, event.clientY, true);
+});
 
 clickModeBtn.addEventListener("click", () => {
   clickMode = !clickMode;
