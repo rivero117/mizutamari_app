@@ -1495,13 +1495,23 @@ function animateFishPose(fish, time, jumpTilt = 0, options = {}) {
   if (!fish) return;
   fish.children.forEach((child, index) => {
     const phase = child.userData.phase || 0;
+    if (options.swimOnly) {
+      const swimTurn = Math.sin(time * 0.82 + phase) * Math.PI / 7;
+      child.position.x = (child.userData.baseX || 0) + Math.sin(time * 1.4 + phase) * 0.004;
+      child.position.y = (child.userData.baseY || 0) + Math.sin(time * 1.9 + phase) * 0.002;
+      child.rotation.x = child.userData.baseRotationX || 0;
+      child.rotation.y = child.userData.baseRotationY || 0;
+      child.rotation.z = (child.userData.baseRotationZ || 0) + swimTurn + Math.sin(time * 4.8 + phase) * 0.035;
+      return;
+    }
+
     const turnAmount = options.swimOnly ? Math.PI / 5 : child.userData.turnAmount || Math.PI / 2;
     const turn = Math.sin(time * 1.18 + phase) * turnAmount;
-    child.position.x = (child.userData.baseX || 0) + Math.sin(time * 1.4 + phase) * (options.swimOnly ? 0.004 : index === 0 ? 8 : 14);
-    child.position.y = (child.userData.baseY || 0) + Math.sin(time * 1.9 + phase) * (options.swimOnly ? 0.002 : index === 0 ? 4 : 9);
-    child.rotation.x = (child.userData.baseRotationX || 0) + Math.sin(time * 1.55 + phase) * (options.swimOnly ? 0.018 : 0.07);
-    child.rotation.y = (child.userData.baseRotationY || 0) + turn + Math.sin(time * 3.2 + phase) * (options.swimOnly ? 0.025 : 0.08);
-    child.rotation.z = (child.userData.baseRotationZ || 0) + Math.sin(time * 1.35 + phase) * (options.swimOnly ? 0.025 : 0.11) + jumpTilt;
+    child.position.x = (child.userData.baseX || 0) + Math.sin(time * 1.4 + phase) * (index === 0 ? 8 : 14);
+    child.position.y = (child.userData.baseY || 0) + Math.sin(time * 1.9 + phase) * (index === 0 ? 4 : 9);
+    child.rotation.x = (child.userData.baseRotationX || 0) + Math.sin(time * 1.55 + phase) * 0.07;
+    child.rotation.y = (child.userData.baseRotationY || 0) + turn + Math.sin(time * 3.2 + phase) * 0.08;
+    child.rotation.z = (child.userData.baseRotationZ || 0) + Math.sin(time * 1.35 + phase) * 0.11 + jumpTilt;
   });
 }
 
