@@ -56,6 +56,7 @@ let xrRefSpace = null;
 let xrHitTestSource = null;
 let xrHitMatrix = null;
 let xrPlaced = false;
+let xrLastFailure = "";
 let puddles = [];
 let officialPuddles = [];
 
@@ -869,7 +870,7 @@ function refreshHome() {
   renderPins(loadPosts());
 }
 
-async function startCamera(mode) {
+async function startCamera(mode, options = {}) {
   const target = mode === "ar" ? arCamera : postCamera;
   if (cameraStarting || (mode === "ar" && xrSession)) return;
   if (!target) {
@@ -878,7 +879,7 @@ async function startCamera(mode) {
   }
 
   cameraStarting = true;
-  if (mode === "ar") {
+  if (mode === "ar" && !options.skipPlaneDetection) {
     setCameraStatus("ar", "平面検知を準備中");
     const planeArStarted = await startPlaneDetectionAr();
     if (planeArStarted) {
@@ -904,7 +905,12 @@ async function startCamera(mode) {
       await initAr3D();
       positionArFish(window.innerWidth / 2, window.innerHeight * 0.56, false);
     }
-    setCameraStatus(mode, mode === "ar" ? "平面検知非対応 タップで仮配置" : "カメラ起動中");
+    setCameraStatus(
+      mode,
+      mode === "ar"
+        ? `平面検知非対応 ${xrLastFailure || "この環境では未検出"} タップで仮配置`
+        : "カメラ起動中"
+    );
   } catch {
     setCameraStatus(mode, "カメラを起動できませんでした。");
   } finally {
@@ -918,10 +924,7 @@ function stopCamera() {
     cleanupPlaneDetectionAr();
     session.end().catch(() => {});
   }
-  if (activeCameraStream) {
-    activeCameraStream.getTracks().forEach((track) => track.stop());
-    activeCameraStream = null;
-  }
+  stopActiveCameraStream();
   [postCamera, arCamera].forEach((video) => {
     if (video) video.srcObject = null;
   });
@@ -932,6 +935,12 @@ function stopCamera() {
 function setCameraStatus(mode, message) {
   if (mode === "ar" && arStatusEl) arStatusEl.textContent = message;
   if (mode === "post" && placeText) placeText.textContent = message;
+}
+
+function stopActiveCameraStream() {
+  if (!activeCameraStream) return;
+  activeCameraStream.getTracks().forEach((track) => track.stop());
+  activeCameraStream = null;
 }
 
 function setArHint(message) {
@@ -1085,7 +1094,15 @@ function resizeAr3D() {
 }
 
 async function startPlaneDetectionAr() {
-  if (!navigator.xr?.requestSession) return false;
+  xrLastFailure = "";
+  if (!window.isSecureContext) {
+    xrLastFailure = "HTTPSではないため";
+    return false;
+  }
+  if (!navigator.xr?.requestSession) {
+    xrLastFailure = "WebXR非対応のため";
+    return false;
+  }
 
   const sessionInit = {
     requiredFeatures: ["hit-test"],
@@ -1097,6 +1114,7 @@ async function startPlaneDetectionAr() {
     session = await navigator.xr.requestSession("immersive-ar", sessionInit);
   } catch (error) {
     console.warn("WebXR immersive-ar session could not be started.", error);
+    xrLastFailure = "端末がARセッションを開始できないため";
     return false;
   }
 
@@ -1130,6 +1148,7 @@ async function startPlaneDetectionAr() {
     return true;
   } catch (error) {
     console.warn("WebXR plane hit-test is unavailable. Camera fallback is active.", error);
+    xrLastFailure = "hit-testを開始できないため";
     session.end().catch(() => {});
     cleanupPlaneDetectionAr();
     return false;
@@ -1232,20 +1251,28 @@ function animateAr3D(timestamp, frame) {
 
   const screenSwimX = Math.sin(t * 1.15) * 22;
   const screenFloatY = Math.sin(t * 1.9) * 12 + Math.sin(t * 3.1) * 3;
+  const screenJumpY = jumpPulse(t, 4.2) * 58;
   ar3D.screenRoot.position.x = (ar3D.screenRoot.userData.baseX || 0) + screenSwimX;
-  ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + screenFloatY;
-  ar3D.screenRoot.scale.setScalar((ar3D.screenRoot.userData.depthScale || 1) * (1 + Math.sin(t * 2.2) * 0.018));
+  ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + screenFloatY + screenJumpY;
+  ar3D.screenRoot.scale.setScalar((ar3D.screenRoot.userData.depthScale || 1) * (1 + Math.sin(t * 2.2) * 0.018 + jumpPulse(t, 4.2) * 0.045));
   ar3D.screenRoot.rotation.x = -0.12 + Math.sin(t * 1.55) * 0.05;
   ar3D.screenRoot.rotation.y = Math.sin(t * 1.2) * 0.18;
-  ar3D.screenRoot.rotation.z = Math.sin(t * 1.35) * 0.09;
+  ar3D.screenRoot.rotation.z = Math.sin(t * 1.35) * 0.09 + screenJumpY * 0.0015;
 
   if (ar3D.xrRoot.visible) {
+    const xrJumpY = jumpPulse(t, 4.8) * 0.08;
     ar3D.xrRoot.position.x = (ar3D.xrRoot.userData.floatBaseX || ar3D.xrRoot.position.x) + Math.sin(t * 1.2) * 0.012;
-    ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.018;
-    ar3D.xrRoot.rotation.y = (ar3D.xrRoot.userData.baseRotationY || 0) + Math.sin(t * 1.25) * 0.18;
+    ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.018 + xrJumpY;
+    ar3D.xrRoot.rotation.y = (ar3D.xrRoot.userData.baseRotationY || 0) + Math.sin(t * 1.25) * 0.18 + xrJumpY * 1.7;
   }
 
   ar3D.renderer.render(ar3D.scene, xrSession ? ar3D.xrCamera : ar3D.screenCamera);
+}
+
+function jumpPulse(time, interval) {
+  const phase = (time % interval) / interval;
+  if (phase > 0.22) return 0;
+  return Math.sin((phase / 0.22) * Math.PI);
 }
 
 window.showScreen = showScreen;
@@ -1268,8 +1295,17 @@ addHereBtn.addEventListener("click", locateUserAndOpenForm);
 clearBtn.addEventListener("click", clearUserPuddles);
 cancelPostBtn.addEventListener("click", closePostForm);
 postForm.addEventListener("submit", submitPost);
-arScreen.addEventListener("click", (event) => {
+arScreen.addEventListener("click", async (event) => {
   if (event.target.closest("button")) return;
+  if (!xrSession && navigator.xr?.requestSession) {
+    stopActiveCameraStream();
+    arCamera.srcObject = null;
+    setCameraStatus("ar", "平面検知を再試行中");
+    setArHint("床や水面にスマホを向けてください");
+    const planeArStarted = await startPlaneDetectionAr();
+    if (planeArStarted) return;
+    await startCamera("ar", { skipPlaneDetection: true });
+  }
   positionArFish(event.clientX, event.clientY, true);
 });
 
