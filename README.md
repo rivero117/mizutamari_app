@@ -8,7 +8,7 @@
 
 - HOME: 水たまり投稿をマップに表示
 - 投稿: 写真、透明度、大きさ、観測日時を保存
-- AR: 対応端末では WebXR hit-test で平面を検知し、`frontend/assets/fish/sacabambaspis.fbx` をぷかぷか表示
+- AR: 対応端末では WebXR hit-test で平面を検知し、`frontend/assets/fish/kajirare_fish.fbx` をぷかぷか表示
 - AR非対応端末: カメラ映像の上でタップ位置に魚を仮配置
 
 ## 実行方法(使い方)

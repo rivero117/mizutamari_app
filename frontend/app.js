@@ -6,8 +6,10 @@ const LEGACY_STORAGE_KEY = "ameato_user_puddle_posts_v11";
 const START_CENTER = [134.3612, 33.9742];
 const THREE_URL = "https://esm.sh/three@0.160.0";
 const FBX_LOADER_URL = "https://esm.sh/three@0.160.0/examples/jsm/loaders/FBXLoader.js";
-const FISH_MODEL_URL = "./assets/fish/sacabambaspis.fbx";
-const FISH_TEXTURE_URL = "./assets/fish/texture.png";
+const FISH_MODEL_URL = "./assets/fish/kajirare_fish.fbx";
+const FISH_BODY_TEXTURE_URL = "./assets/fish/kajirare_body.png";
+const FISH_EYE_TEXTURE_URL = "./assets/fish/kajirare_eye.png";
+const FISH_TAIL_TEXTURE_URL = "./assets/fish/kajirare_tail.png";
 
 const screens = Array.from(document.querySelectorAll("[data-screen]"));
 const navButtons = Array.from(document.querySelectorAll("[data-nav]"));
@@ -34,12 +36,7 @@ const playerAvatarInput = document.getElementById("playerAvatarInput");
 const postForm = document.getElementById("postForm");
 const placeText = document.getElementById("placeText");
 const transparencyInput = document.getElementById("transparencyInput");
-const transparencyBars = document.getElementById("transparencyBars");
 const observedAtInput = document.getElementById("observedAtInput");
-const observedMonthInput = document.getElementById("observedMonthInput");
-const observedDayInput = document.getElementById("observedDayInput");
-const observedHourInput = document.getElementById("observedHourInput");
-const observedMinuteInput = document.getElementById("observedMinuteInput");
 const photoInput = document.getElementById("photoInput");
 const photoLibraryInput = document.getElementById("photoLibraryInput");
 const photoLabel = document.getElementById("photoLabel");
@@ -84,7 +81,6 @@ let homeFilters = {
   observedDays: "7"
 };
 let selectedPhotoFile = null;
-let transparencyLevel = 1;
 
 const markers = [];
 
@@ -791,82 +787,19 @@ function transparencyToSpecValue(level) {
   return Math.min(Math.max(Math.ceil((11 - Number(level || 1)) / 2), 1), 5);
 }
 
-function transparencyColor(level) {
-  const opacity = 0.16 + level * 0.075;
-  const blue = 238 - level * 11;
-  return `rgba(14, ${Math.max(82, blue - 74)}, ${Math.max(120, blue)}, ${Math.min(opacity, 0.92)})`;
-}
-
 function setTransparencyLevel(level) {
-  transparencyLevel = Math.min(Math.max(Number(level || 1), 1), 10);
-  if (transparencyInput) transparencyInput.value = String(transparencyToSpecValue(transparencyLevel));
-  if (transparencyBars) {
-    transparencyBars.setAttribute("aria-valuenow", String(transparencyLevel));
-    transparencyBars.querySelectorAll("button").forEach((button) => {
-      const buttonLevel = Number(button.dataset.level);
-      button.classList.toggle("active", buttonLevel <= transparencyLevel);
-      button.style.background = buttonLevel <= transparencyLevel ? transparencyColor(buttonLevel) : "rgba(18, 57, 54, 0.08)";
-    });
+  const value = Math.min(Math.max(Number(level || 1), 1), 10);
+  if (transparencyInput) {
+    transparencyInput.value = String(value);
+    transparencyInput.style.setProperty("--transparency-progress", `${((value - 1) / 9) * 100}%`);
   }
   validatePostForm();
-}
-
-function fillNumberOptions(select, start, end, suffix = "") {
-  if (!select || select.options.length > 0) return;
-  for (let value = start; value <= end; value += 1) {
-    const option = document.createElement("option");
-    option.value = String(value).padStart(2, "0");
-    option.textContent = `${value}${suffix}`;
-    select.append(option);
-  }
-}
-
-function setupObservedAtWheel() {
-  fillNumberOptions(observedMonthInput, 1, 12, "月");
-  fillNumberOptions(observedHourInput, 0, 23, "時");
-  fillNumberOptions(observedMinuteInput, 0, 59, "分");
-  [observedMonthInput, observedDayInput, observedHourInput, observedMinuteInput].forEach((select) => {
-    if (select) select.addEventListener("change", updateObservedAtFromWheel);
-  });
-}
-
-function updateDayOptions(selectedDay = Number(observedDayInput?.value || 1)) {
-  if (!observedDayInput || !observedMonthInput) return;
-  const year = new Date().getFullYear();
-  const month = Number(observedMonthInput.value || 1);
-  const daysInMonth = new Date(year, month, 0).getDate();
-  observedDayInput.replaceChildren();
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const option = document.createElement("option");
-    option.value = String(day).padStart(2, "0");
-    option.textContent = `${day}日`;
-    observedDayInput.append(option);
-  }
-  observedDayInput.value = String(Math.min(selectedDay, daysInMonth)).padStart(2, "0");
 }
 
 function setObservedAt(date) {
   const local = new Date(date);
   if (Number.isNaN(local.getTime())) return;
-  if (observedMonthInput) observedMonthInput.value = String(local.getMonth() + 1).padStart(2, "0");
-  updateDayOptions(local.getDate());
-  if (observedHourInput) observedHourInput.value = String(local.getHours()).padStart(2, "0");
-  if (observedMinuteInput) observedMinuteInput.value = String(local.getMinutes()).padStart(2, "0");
-  updateObservedAtFromWheel();
-}
-
-function updateObservedAtFromWheel() {
-  if (!observedAtInput || !observedMonthInput || !observedDayInput || !observedHourInput || !observedMinuteInput) return;
-  updateDayOptions(Number(observedDayInput.value || 1));
-  const year = new Date().getFullYear();
-  const date = new Date(
-    year,
-    Number(observedMonthInput.value) - 1,
-    Number(observedDayInput.value),
-    Number(observedHourInput.value),
-    Number(observedMinuteInput.value)
-  );
-  observedAtInput.value = toDateTimeLocalValue(date);
+  if (observedAtInput) observedAtInput.value = toDateInputValue(local);
   validatePostForm();
 }
 
@@ -931,7 +864,7 @@ async function submitPost(event) {
     lat: selectedPoint.latitude,
     lng: selectedPoint.longitude,
     size: diameterCm,
-    transparency: Number(transparencyInput.value),
+    transparency: transparencyToSpecValue(Number(transparencyInput.value)),
     observedAt: observedAt.toISOString(),
     image: await readPhotoAsDataUrl(selectedPhotoFile),
     comment: "",
@@ -968,6 +901,11 @@ async function submitPost(event) {
 function toDateTimeLocalValue(date) {
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function toDateInputValue(date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 10);
 }
 
 function sizeToFishCount(size, review) {
@@ -1262,11 +1200,10 @@ async function initAr3D() {
     scene.add(fillLight);
 
     const loadedFish = await loadFishAsset(THREE, FBXLoader);
-    const screenFish = loadedFish ? prepareFishModel(THREE, loadedFish, 220) : createSimpleFishModel(THREE, 1.7);
-    const xrFish = loadedFish ? prepareFishModel(THREE, loadedFish.clone(true), 0.34) : createSimpleFishModel(THREE, 0.003);
+    const screenFish = loadedFish ? prepareFishModel(THREE, loadedFish, 320) : createSimpleFishModel(THREE, 1.7);
+    const xrFish = loadedFish ? prepareFishModel(THREE, loadedFish.clone(true), 0.46) : createSimpleFishModel(THREE, 0.003);
     screenRoot.add(screenFish);
     xrRoot.add(xrFish);
-    xrRoot.userData.baseRotationY = xrRoot.rotation.y;
 
     ar3D = {
       THREE,
@@ -1276,6 +1213,8 @@ async function initAr3D() {
       xrCamera,
       screenRoot,
       xrRoot,
+      screenFish,
+      xrFish,
       startedAt: performance.now()
     };
     arScreen.classList.add("three-ready");
@@ -1291,13 +1230,23 @@ async function initAr3D() {
 
 async function loadFishAsset(THREE, FBXLoader) {
   try {
-    const texture = await new THREE.TextureLoader().loadAsync(FISH_TEXTURE_URL);
-    texture.colorSpace = THREE.SRGBColorSpace;
+    const loader = new THREE.TextureLoader();
+    const [bodyTexture, eyeTexture, tailTexture] = await Promise.all([
+      loader.loadAsync(FISH_BODY_TEXTURE_URL),
+      loader.loadAsync(FISH_EYE_TEXTURE_URL),
+      loader.loadAsync(FISH_TAIL_TEXTURE_URL)
+    ]);
+    [bodyTexture, eyeTexture, tailTexture].forEach((texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+    });
+
     const model = await new FBXLoader().loadAsync(FISH_MODEL_URL);
     model.traverse((child) => {
       if (!child.isMesh) return;
+      const name = `${child.name || ""} ${child.material?.name || ""}`.toLowerCase();
+      const map = name.includes("eye") ? eyeTexture : name.includes("tail") ? tailTexture : bodyTexture;
       child.material = new THREE.MeshStandardMaterial({
-        map: texture,
+        map,
         roughness: 0.82,
         metalness: 0
       });
@@ -1322,6 +1271,7 @@ function prepareFishModel(THREE, model, targetSize) {
   model.scale.multiplyScalar(targetSize / maxAxis);
   wrapper.rotation.x = -0.12;
   wrapper.rotation.y = 0;
+  wrapper.rotation.z = Math.PI / 2;
   wrapper.userData.baseRotationX = wrapper.rotation.x;
   wrapper.userData.baseRotationY = wrapper.rotation.y;
   wrapper.userData.baseRotationZ = wrapper.rotation.z;
@@ -1473,6 +1423,7 @@ function placeFishOnDetectedPlane() {
   xrRoot.visible = true;
   xrRoot.userData.floatBaseX = xrRoot.position.x;
   xrRoot.userData.floatBaseY = xrRoot.position.y;
+  xrRoot.userData.floatBaseZ = xrRoot.position.z;
   xrPlaced = true;
   arScreen.classList.add("fish-placed");
   setCameraStatus("ar", "平面にぷかぷか中");
@@ -1535,15 +1486,14 @@ function animateAr3D(timestamp, frame) {
   ar3D.screenRoot.position.x = (ar3D.screenRoot.userData.baseX || 0) + screenSwimX;
   ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + screenFloatY + screenJumpY;
   ar3D.screenRoot.scale.setScalar((ar3D.screenRoot.userData.depthScale || 1) * (1 + Math.sin(t * 2.2) * 0.018 + jumpPulse(t, 4.2) * 0.045));
-  ar3D.screenRoot.rotation.x = -0.12 + Math.sin(t * 1.55) * 0.05;
-  ar3D.screenRoot.rotation.y = Math.sin(t * 1.2) * 0.18;
-  ar3D.screenRoot.rotation.z = Math.sin(t * 1.35) * 0.09 + screenJumpY * 0.0015;
+  animateFishPose(ar3D.screenFish, t, screenJumpY * 0.0015);
 
   if (ar3D.xrRoot.visible) {
     const xrJumpY = jumpPulse(t, 4.8) * 0.08;
     ar3D.xrRoot.position.x = (ar3D.xrRoot.userData.floatBaseX || ar3D.xrRoot.position.x) + Math.sin(t * 1.2) * 0.012;
     ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.018 + xrJumpY;
-    ar3D.xrRoot.rotation.y = (ar3D.xrRoot.userData.baseRotationY || 0) + Math.sin(t * 1.25) * 0.18 + xrJumpY * 1.7;
+    ar3D.xrRoot.position.z = ar3D.xrRoot.userData.floatBaseZ || ar3D.xrRoot.position.z;
+    animateFishPose(ar3D.xrFish, t, xrJumpY * 1.7);
   }
 
   ar3D.renderer.render(ar3D.scene, xrSession ? ar3D.xrCamera : ar3D.screenCamera);
@@ -1553,6 +1503,14 @@ function jumpPulse(time, interval) {
   const phase = (time % interval) / interval;
   if (phase > 0.22) return 0;
   return Math.sin((phase / 0.22) * Math.PI);
+}
+
+function animateFishPose(fish, time, jumpTilt = 0) {
+  if (!fish) return;
+  const halfTurn = Math.sin(time * 1.18) * (Math.PI / 2);
+  fish.rotation.x = (fish.userData.baseRotationX || 0) + Math.sin(time * 1.55) * 0.07;
+  fish.rotation.y = (fish.userData.baseRotationY || 0) + halfTurn + Math.sin(time * 3.2) * 0.08;
+  fish.rotation.z = (fish.userData.baseRotationZ || 0) + Math.sin(time * 1.35) * 0.11 + jumpTilt;
 }
 
 window.showScreen = showScreen;
@@ -1639,20 +1597,8 @@ postForm.querySelectorAll('input[name="size"]').forEach((input) => {
   input.addEventListener("change", validatePostForm);
 });
 
-transparencyBars.querySelectorAll("button").forEach((button) => {
-  button.addEventListener("click", () => setTransparencyLevel(Number(button.dataset.level)));
-});
-
-transparencyBars.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    setTransparencyLevel(transparencyLevel - 1);
-  }
-  if (event.key === "ArrowRight") {
-    event.preventDefault();
-    setTransparencyLevel(transparencyLevel + 1);
-  }
-});
+transparencyInput.addEventListener("input", () => setTransparencyLevel(Number(transparencyInput.value)));
+observedAtInput.addEventListener("change", validatePostForm);
 
 clickModeBtn.addEventListener("click", () => {
   clickMode = !clickMode;
@@ -1668,6 +1614,5 @@ playerAvatarInput.addEventListener("change", () => {
   statusEl.textContent = `自分のすがたを${getPlayerName()}にしました。`;
 });
 
-setupObservedAtWheel();
 setObservedAt(new Date());
 setTransparencyLevel(1);
