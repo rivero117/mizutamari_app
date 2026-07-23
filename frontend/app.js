@@ -858,7 +858,7 @@ async function submitPost(event) {
   }
 
   const diameterCm = Number(sizeInput.value);
-  const observedAt = new Date(observedAtInput.value);
+  const observedAt = parseObservedDateInput(observedAtInput.value);
   const draftPost = normalizeSpecPost({
     id: `post-${Date.now()}`,
     lat: selectedPoint.latitude,
@@ -906,6 +906,20 @@ function toDateTimeLocalValue(date) {
 function toDateInputValue(date) {
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 10);
+}
+
+function parseObservedDateInput(value, now = new Date()) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  if (!year || !month || !day) return new Date(NaN);
+  return new Date(
+    year,
+    month - 1,
+    day,
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds()
+  );
 }
 
 function sizeToFishCount(size, review) {
