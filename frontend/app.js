@@ -1033,7 +1033,9 @@ function prepareFishModel(THREE, model, targetSize) {
   model.scale.multiplyScalar(targetSize / maxAxis);
   wrapper.rotation.x = -0.12;
   wrapper.rotation.y = 0;
+  wrapper.userData.baseRotationX = wrapper.rotation.x;
   wrapper.userData.baseRotationY = wrapper.rotation.y;
+  wrapper.userData.baseRotationZ = wrapper.rotation.z;
   return wrapper;
 }
 
@@ -1063,7 +1065,9 @@ function createSimpleFishModel(THREE, scale) {
   group.scale.setScalar(scale);
   group.rotation.x = -0.12;
   group.rotation.y = Math.PI;
+  group.userData.baseRotationX = group.rotation.x;
   group.userData.baseRotationY = group.rotation.y;
+  group.userData.baseRotationZ = group.rotation.z;
   return group;
 }
 
@@ -1168,6 +1172,7 @@ function placeFishOnDetectedPlane() {
   xrRoot.quaternion.copy(quaternion);
   xrRoot.rotateX(-Math.PI / 2);
   xrRoot.visible = true;
+  xrRoot.userData.floatBaseX = xrRoot.position.x;
   xrRoot.userData.floatBaseY = xrRoot.position.y;
   xrPlaced = true;
   arScreen.classList.add("fish-placed");
@@ -1225,14 +1230,19 @@ function animateAr3D(timestamp, frame) {
     }
   }
 
-  ar3D.screenRoot.position.x = ar3D.screenRoot.userData.baseX || 0;
-  ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + Math.sin(t * 1.9) * 7;
-  ar3D.screenRoot.scale.setScalar(ar3D.screenRoot.userData.depthScale || 1);
-  ar3D.screenRoot.rotation.z = Math.sin(t * 1.35) * 0.045;
+  const screenSwimX = Math.sin(t * 1.15) * 22;
+  const screenFloatY = Math.sin(t * 1.9) * 12 + Math.sin(t * 3.1) * 3;
+  ar3D.screenRoot.position.x = (ar3D.screenRoot.userData.baseX || 0) + screenSwimX;
+  ar3D.screenRoot.position.y = (ar3D.screenRoot.userData.baseY || 0) + screenFloatY;
+  ar3D.screenRoot.scale.setScalar((ar3D.screenRoot.userData.depthScale || 1) * (1 + Math.sin(t * 2.2) * 0.018));
+  ar3D.screenRoot.rotation.x = -0.12 + Math.sin(t * 1.55) * 0.05;
+  ar3D.screenRoot.rotation.y = Math.sin(t * 1.2) * 0.18;
+  ar3D.screenRoot.rotation.z = Math.sin(t * 1.35) * 0.09;
 
   if (ar3D.xrRoot.visible) {
-    ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.012;
-    ar3D.xrRoot.rotation.y = (ar3D.xrRoot.userData.baseRotationY || 0) + Math.sin(t * 1.25) * 0.08;
+    ar3D.xrRoot.position.x = (ar3D.xrRoot.userData.floatBaseX || ar3D.xrRoot.position.x) + Math.sin(t * 1.2) * 0.012;
+    ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.018;
+    ar3D.xrRoot.rotation.y = (ar3D.xrRoot.userData.baseRotationY || 0) + Math.sin(t * 1.25) * 0.18;
   }
 
   ar3D.renderer.render(ar3D.scene, xrSession ? ar3D.xrCamera : ar3D.screenCamera);
