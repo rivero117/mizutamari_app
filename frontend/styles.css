@@ -171,8 +171,8 @@ h1 {
 .stats {
   display: grid;
   grid-template-columns: auto auto;
-  gap: 6px;
-  align-items: center;
+  column-gap: 2px;
+  align-items: baseline;
   margin: 0;
   padding: 0 4px;
   border-radius: 0;
@@ -184,6 +184,7 @@ h1 {
 
 .stats strong {
   font-size: 18px;
+  line-height: 1;
 }
 
 .segmented,
