@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mizuta MAP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-home-actions" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-avatar-picker" />
   </head>
   <body>
     <main id="app">
       <section id="screen-home" class="screen screen-home" data-screen="home">
         <div id="map" aria-label="Mizuta MAP"></div>
 
-        <button id="locateBtn" class="map-locate-button" type="button" aria-label="現在地を見る" title="現在地を見る">
+        <button id="locateBtn" class="map-locate-button" type="button" aria-label="自分のアイコンを変える" title="自分のアイコンを変える" aria-expanded="false" aria-controls="avatarPicker">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="5" r="1"></circle>
             <path d="m9 20 3-6 3 6"></path>
@@ -20,6 +20,16 @@
             <path d="M12 10v4"></path>
           </svg>
         </button>
+
+        <div id="avatarPicker" class="map-avatar-picker" hidden>
+          <label for="playerAvatarInput">自分のすがた</label>
+          <select id="playerAvatarInput">
+            <option value="shrimp">えび</option>
+            <option value="crab">かに</option>
+            <option value="octopus">たこ</option>
+          </select>
+          <button id="avatarApplyBtn" class="avatar-apply-button" type="button">表示</button>
+        </div>
 
         <section class="panel" aria-label="操作パネル">
           <div>
@@ -85,15 +95,6 @@
             <button id="addHereBtn" class="secondary" type="button">現在地で投稿</button>
             <button id="clearBtn" class="danger" type="button">自分の投稿を消す</button>
           </div>
-
-          <label class="avatar-row">
-            <span>自分のすがた</span>
-            <select id="playerAvatarInput">
-              <option value="shrimp">えび</option>
-              <option value="crab">かに</option>
-              <option value="octopus">たこ</option>
-            </select>
-          </label>
 
           <p id="status" class="status">地図を読み込み中...</p>
         </section>
@@ -164,6 +165,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260723-home-actions"></script>
+    <script src="./app.js?v=20260723-avatar-picker"></script>
   </body>
 </html>

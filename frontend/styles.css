@@ -106,6 +106,41 @@ body.click-posting .maplibregl-canvas {
   height: 24px;
 }
 
+.map-avatar-picker {
+  position: absolute;
+  top: 144px;
+  right: 10px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: auto minmax(88px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px;
+  border: 1px solid rgba(18, 57, 54, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 251, 0.97);
+  color: var(--ink);
+  box-shadow: 0 4px 12px rgba(18, 57, 54, 0.18);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.map-avatar-picker[hidden] {
+  display: none !important;
+}
+
+.map-avatar-picker select {
+  min-height: 44px;
+  padding: 8px;
+}
+
+.map-avatar-picker .avatar-apply-button {
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
 button,
 select,
 input,
@@ -345,16 +380,6 @@ h1 {
 
 .actions #clearBtn {
   grid-column: 1 / -1;
-}
-
-.avatar-row {
-  display: none;
-  grid-template-columns: auto 1fr;
-  gap: 8px;
-  align-items: center;
-  margin-top: 12px;
-  font-size: 13px;
-  font-weight: 800;
 }
 
 select,

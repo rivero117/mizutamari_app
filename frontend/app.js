@@ -32,9 +32,11 @@ const observedDaysInput = document.getElementById("observedDaysInput");
 const resetFiltersBtn = document.getElementById("resetFiltersBtn");
 const clickModeBtn = document.getElementById("clickModeBtn");
 const locateBtn = document.getElementById("locateBtn");
+const avatarPicker = document.getElementById("avatarPicker");
 const addHereBtn = document.getElementById("addHereBtn");
 const clearBtn = document.getElementById("clearBtn");
 const playerAvatarInput = document.getElementById("playerAvatarInput");
+const avatarApplyBtn = document.getElementById("avatarApplyBtn");
 const postForm = document.getElementById("postForm");
 const placeText = document.getElementById("placeText");
 const transparencyInput = document.getElementById("transparencyInput");
@@ -951,11 +953,26 @@ function readPhotoAsDataUrl(file) {
   });
 }
 
-function locateUserOnly() {
+function toggleAvatarPicker(open = avatarPicker.hidden) {
+  avatarPicker.hidden = !open;
+  locateBtn.setAttribute("aria-expanded", String(open));
+  if (open) playerAvatarInput.focus();
+}
+
+function applyPlayerAvatar() {
+  toggleAvatarPicker(false);
+  locateBtn.focus();
+
+  if (lastKnownPosition) {
+    showPlayer(lastKnownPosition.longitude, lastKnownPosition.latitude);
+    statusEl.textContent = `自分のすがたを${getPlayerName()}にしました。`;
+    return;
+  }
+
   locateUser((longitude, latitude) => {
     showPlayer(longitude, latitude);
     map.easeTo({ center: [longitude, latitude], zoom: currentView === "play" ? 19.1 : 16.6, duration: 900 });
-    statusEl.textContent = "現在地を表示しました。";
+    statusEl.textContent = `自分のすがたを${getPlayerName()}にしました。`;
   });
 }
 
@@ -1068,6 +1085,7 @@ function showScreen(screenName) {
   if (!nextScreen) return;
 
   stopCamera();
+  toggleAvatarPicker(false);
   screens.forEach((screen) => {
     screen.hidden = screen !== nextScreen;
   });
@@ -1794,7 +1812,7 @@ resetFiltersBtn.addEventListener("click", () => {
 
 playViewBtn.addEventListener("click", () => setView("play", true));
 mapViewBtn.addEventListener("click", () => setView("map", true));
-locateBtn.addEventListener("click", locateUserOnly);
+locateBtn.addEventListener("click", () => toggleAvatarPicker());
 addHereBtn.addEventListener("click", locateUserAndOpenForm);
 clearBtn.addEventListener("click", clearUserPuddles);
 cancelPostBtn.addEventListener("click", closePostForm);
@@ -1857,9 +1875,18 @@ clickModeBtn.addEventListener("click", () => {
     : "クリック投稿モードを解除しました。";
 });
 
-playerAvatarInput.addEventListener("change", () => {
-  if (lastKnownPosition) showPlayer(lastKnownPosition.longitude, lastKnownPosition.latitude);
-  statusEl.textContent = `自分のすがたを${getPlayerName()}にしました。`;
+playerAvatarInput.addEventListener("change", applyPlayerAvatar);
+avatarApplyBtn.addEventListener("click", applyPlayerAvatar);
+
+document.addEventListener("click", (event) => {
+  if (avatarPicker.hidden || avatarPicker.contains(event.target) || locateBtn.contains(event.target)) return;
+  toggleAvatarPicker(false);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || avatarPicker.hidden) return;
+  toggleAvatarPicker(false);
+  locateBtn.focus();
 });
 
 setObservedAt(new Date());
