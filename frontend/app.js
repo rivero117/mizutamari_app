@@ -1108,8 +1108,12 @@ async function loadFishAsset(THREE, FBXLoader) {
       if (!child.isMesh) return;
       const name = `${child.name || ""} ${child.material?.name || ""}`.toLowerCase();
       const map = name.includes("eye") ? eyeTexture : name.includes("tail") ? tailTexture : bodyTexture;
+      const color = name.includes("eye") ? 0x47330b : name.includes("tail") ? 0x93d3ae : 0xffd56f;
       child.material = new THREE.MeshStandardMaterial({
         map,
+        color,
+        emissive: color,
+        emissiveIntensity: name.includes("eye") ? 0 : 0.08,
         roughness: 0.82,
         metalness: 0
       });
@@ -1134,7 +1138,7 @@ function prepareFishModel(THREE, model, targetSize) {
   model.scale.multiplyScalar(targetSize / maxAxis);
   wrapper.rotation.x = -0.12;
   wrapper.rotation.y = 0;
-  wrapper.rotation.z = Math.PI / 2;
+  wrapper.rotation.z = 0;
   wrapper.userData.baseRotationX = wrapper.rotation.x;
   wrapper.userData.baseRotationY = wrapper.rotation.y;
   wrapper.userData.baseRotationZ = wrapper.rotation.z;
