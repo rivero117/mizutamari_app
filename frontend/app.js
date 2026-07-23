@@ -1055,8 +1055,7 @@ async function initAr3D() {
     const screenFish = createFishSchool(THREE, loadedFish, 1);
     const xrFish = createFishSchool(THREE, loadedFish, 0.00048);
     screenFish.position.y = 8;
-    xrFish.position.z = 0.026;
-    xrFish.rotation.x = Math.PI / 2;
+    xrFish.position.z = 0.018;
     xrFish.scale.setScalar(1);
     xrFish.renderOrder = 3;
     xrFish.traverse((child) => {
@@ -1472,15 +1471,15 @@ function animateAr3D(timestamp, frame) {
   animateFishPose(ar3D.screenFish, t, screenJumpY * 0.0015);
 
   if (ar3D.xrRoot.visible) {
-    const xrJumpZ = jumpPulse(t, 6.2) * 0.006;
     ar3D.xrRoot.position.x = (ar3D.xrRoot.userData.floatBaseX || ar3D.xrRoot.position.x) + Math.sin(t * 1.2) * 0.0015;
     ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.0012;
     ar3D.xrRoot.position.z = ar3D.xrRoot.userData.floatBaseZ || ar3D.xrRoot.position.z;
     animatePuddle(ar3D.xrPuddle, t);
-    ar3D.xrFish.position.y = Math.sin(t * 1.25) * 0.0025;
-    ar3D.xrFish.position.z = 0.026 + Math.sin(t * 1.6) * 0.0025 + xrJumpZ;
-    ar3D.xrFish.scale.setScalar(1 + Math.sin(t * 2.2) * 0.006 + jumpPulse(t, 6.2) * 0.008);
-    animateFishPose(ar3D.xrFish, t, xrJumpZ * 0.35);
+    ar3D.xrFish.position.x = Math.sin(t * 0.7) * 0.018;
+    ar3D.xrFish.position.y = Math.cos(t * 0.62) * 0.006;
+    ar3D.xrFish.position.z = 0.018 + Math.sin(t * 1.4) * 0.002;
+    ar3D.xrFish.scale.setScalar(1 + Math.sin(t * 1.8) * 0.004);
+    animateFishPose(ar3D.xrFish, t, 0, { swimOnly: true });
   }
 
   ar3D.renderer.render(ar3D.scene, xrSession ? ar3D.xrCamera : ar3D.screenCamera);
@@ -1492,16 +1491,17 @@ function jumpPulse(time, interval) {
   return Math.sin((phase / 0.22) * Math.PI);
 }
 
-function animateFishPose(fish, time, jumpTilt = 0) {
+function animateFishPose(fish, time, jumpTilt = 0, options = {}) {
   if (!fish) return;
   fish.children.forEach((child, index) => {
     const phase = child.userData.phase || 0;
-    const turn = Math.sin(time * 1.18 + phase) * (child.userData.turnAmount || Math.PI / 2);
-    child.position.x = (child.userData.baseX || 0) + Math.sin(time * 1.4 + phase) * (index === 0 ? 8 : 14);
-    child.position.y = (child.userData.baseY || 0) + Math.sin(time * 1.9 + phase) * (index === 0 ? 4 : 9);
-    child.rotation.x = (child.userData.baseRotationX || 0) + Math.sin(time * 1.55 + phase) * 0.07;
-    child.rotation.y = (child.userData.baseRotationY || 0) + turn + Math.sin(time * 3.2 + phase) * 0.08;
-    child.rotation.z = (child.userData.baseRotationZ || 0) + Math.sin(time * 1.35 + phase) * 0.11 + jumpTilt;
+    const turnAmount = options.swimOnly ? Math.PI / 5 : child.userData.turnAmount || Math.PI / 2;
+    const turn = Math.sin(time * 1.18 + phase) * turnAmount;
+    child.position.x = (child.userData.baseX || 0) + Math.sin(time * 1.4 + phase) * (options.swimOnly ? 0.004 : index === 0 ? 8 : 14);
+    child.position.y = (child.userData.baseY || 0) + Math.sin(time * 1.9 + phase) * (options.swimOnly ? 0.002 : index === 0 ? 4 : 9);
+    child.rotation.x = (child.userData.baseRotationX || 0) + Math.sin(time * 1.55 + phase) * (options.swimOnly ? 0.018 : 0.07);
+    child.rotation.y = (child.userData.baseRotationY || 0) + turn + Math.sin(time * 3.2 + phase) * (options.swimOnly ? 0.025 : 0.08);
+    child.rotation.z = (child.userData.baseRotationZ || 0) + Math.sin(time * 1.35 + phase) * (options.swimOnly ? 0.025 : 0.11) + jumpTilt;
   });
 }
 
