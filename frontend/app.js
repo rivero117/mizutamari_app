@@ -1059,7 +1059,12 @@ async function initAr3D() {
     const screenFish = createFishSchool(THREE, loadedFish, 1);
     const xrFish = createFishSchool(THREE, loadedFish, 0.00145);
     screenFish.position.y = 8;
-    xrFish.position.y = 0.018;
+    xrFish.position.z = 0.07;
+    xrFish.scale.setScalar(1.14);
+    xrFish.renderOrder = 3;
+    xrFish.traverse((child) => {
+      child.renderOrder = 3;
+    });
     screenRoot.add(screenPuddle, screenFish);
     xrRoot.add(xrPuddle, xrFish);
 
@@ -1469,13 +1474,15 @@ function animateAr3D(timestamp, frame) {
   animateFishPose(ar3D.screenFish, t, screenJumpY * 0.0015);
 
   if (ar3D.xrRoot.visible) {
-    const xrJumpY = jumpPulse(t, 4.8) * 0.08;
+    const xrJumpZ = jumpPulse(t, 4.8) * 0.08;
     ar3D.xrRoot.position.x = (ar3D.xrRoot.userData.floatBaseX || ar3D.xrRoot.position.x) + Math.sin(t * 1.2) * 0.012;
     ar3D.xrRoot.position.y = (ar3D.xrRoot.userData.floatBaseY || ar3D.xrRoot.position.y) + Math.sin(t * 1.8) * 0.008;
     ar3D.xrRoot.position.z = ar3D.xrRoot.userData.floatBaseZ || ar3D.xrRoot.position.z;
     animatePuddle(ar3D.xrPuddle, t);
-    ar3D.xrFish.position.y = 0.018 + Math.sin(t * 1.8) * 0.014 + xrJumpY;
-    animateFishPose(ar3D.xrFish, t, xrJumpY * 1.7);
+    ar3D.xrFish.position.y = Math.sin(t * 1.35) * 0.018;
+    ar3D.xrFish.position.z = 0.07 + Math.sin(t * 1.8) * 0.018 + xrJumpZ;
+    ar3D.xrFish.scale.setScalar(1.14 + Math.sin(t * 2.2) * 0.02 + jumpPulse(t, 4.8) * 0.04);
+    animateFishPose(ar3D.xrFish, t, xrJumpZ * 1.7);
   }
 
   ar3D.renderer.render(ar3D.scene, xrSession ? ar3D.xrCamera : ar3D.screenCamera);
