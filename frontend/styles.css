@@ -697,22 +697,111 @@ input[type="number"] {
   position: absolute;
   left: 50%;
   top: 54%;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 112px;
-  height: 112px;
-  border-radius: 50%;
-  background: rgba(43, 186, 165, 0.22);
-  font-size: 64px;
+  z-index: 2;
+  display: block;
+  width: 260px;
+  height: 150px;
   transform: translate(-50%, -50%) scale(var(--ar-fish-scale, 1));
   animation: fishFloat 2.8s ease-in-out infinite;
   transition: left 180ms ease, top 180ms ease, transform 180ms ease;
+  pointer-events: none;
 }
 
-.screen-ar.three-ready .ar-fish,
-.screen-ar.xr-on .ar-fish {
-  display: none;
+.fallback-puddle,
+.fallback-fish,
+.fallback-fish::before,
+.fallback-fish::after {
+  position: absolute;
+  display: block;
+  content: "";
+}
+
+.fallback-puddle {
+  left: 18px;
+  top: 60px;
+  width: 220px;
+  height: 38px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 32% 28%, rgba(255, 255, 255, 0.78) 0 13%, transparent 14%),
+    radial-gradient(ellipse at 50% 52%, rgba(189, 238, 255, 0.68) 0 62%, rgba(189, 238, 255, 0.18) 63% 100%);
+  border: 2px solid rgba(234, 252, 255, 0.72);
+  box-shadow: 0 0 18px rgba(127, 217, 232, 0.22);
+  animation: puddlePulse 3.2s ease-in-out infinite;
+}
+
+.fallback-fish {
+  border-radius: 56% 46% 48% 54%;
+  background: #ffe49a;
+  box-shadow: inset -10px -8px 18px rgba(225, 185, 80, 0.18);
+  animation: fallbackFishWiggle 3.4s ease-in-out infinite;
+}
+
+.fallback-fish::before {
+  right: -22px;
+  top: 50%;
+  width: 38px;
+  height: 42px;
+  border-radius: 50%;
+  background: #b8efe4;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.fallback-fish::after {
+  left: 14px;
+  top: 19px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #47330b;
+  box-shadow: 28px 8px 0 -2px rgba(151, 105, 11, 0.58), 52px 6px 0 -2px rgba(151, 105, 11, 0.5);
+}
+
+.fallback-fish-main {
+  left: 96px;
+  top: 36px;
+  width: 112px;
+  height: 54px;
+}
+
+.fallback-fish-small {
+  width: 56px;
+  height: 28px;
+}
+
+.fallback-fish-small::before {
+  right: -12px;
+  width: 21px;
+  height: 23px;
+}
+
+.fallback-fish-small::after {
+  left: 8px;
+  top: 10px;
+  width: 4px;
+  height: 4px;
+  box-shadow: 14px 4px 0 -1px rgba(151, 105, 11, 0.46);
+}
+
+.fallback-fish-blue {
+  left: 28px;
+  top: 82px;
+  background: #bdeeff;
+  animation-delay: -0.8s;
+}
+
+.fallback-fish-mint {
+  right: 10px;
+  top: 18px;
+  background: #cdf3d5;
+  animation-delay: -1.6s;
+}
+
+.fallback-fish-pink {
+  right: 42px;
+  bottom: 12px;
+  background: #ffd2dc;
+  animation-delay: -2.2s;
 }
 
 .ar-reticle {
@@ -822,10 +911,35 @@ input[type="number"] {
 @keyframes fishFloat {
   0%,
   100% {
-    transform: translateY(0) rotate(-4deg);
+    transform: translate(-50%, -50%) translateY(0) scale(var(--ar-fish-scale, 1)) rotate(-4deg);
   }
   50% {
-    transform: translateY(-18px) rotate(5deg);
+    transform: translate(-50%, -50%) translateY(-18px) scale(var(--ar-fish-scale, 1)) rotate(5deg);
+  }
+}
+
+@keyframes puddlePulse {
+  0%,
+  100% {
+    transform: scaleX(0.98) scaleY(1.02);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scaleX(1.04) scaleY(0.94);
+    opacity: 0.9;
+  }
+}
+
+@keyframes fallbackFishWiggle {
+  0%,
+  100% {
+    transform: translateX(0) translateY(0) rotate(-2deg);
+  }
+  45% {
+    transform: translateX(10px) translateY(-5px) rotate(6deg);
+  }
+  70% {
+    transform: translateX(-6px) translateY(3px) rotate(-8deg);
   }
 }
 

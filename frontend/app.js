@@ -1040,6 +1040,7 @@ async function initAr3D() {
 
     const screenRoot = new THREE.Group();
     const xrRoot = new THREE.Group();
+    screenRoot.visible = false;
     xrRoot.visible = false;
     scene.add(screenRoot, xrRoot);
     scene.add(new THREE.AmbientLight(0xffffff, 1.85));
@@ -1359,7 +1360,7 @@ function cleanupPlaneDetectionAr() {
   xrPlaced = false;
   if (ar3D?.renderer) {
     ar3D.renderer.xr.enabled = false;
-    ar3D.screenRoot.visible = true;
+    ar3D.screenRoot.visible = false;
     ar3D.xrRoot.visible = false;
   }
   arScreen.classList.remove("xr-on");

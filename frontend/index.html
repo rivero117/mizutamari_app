@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mizuta MAP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-camera-fish-post-defaults" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-visible-ar-fallback" />
   </head>
   <body>
     <main id="app">
@@ -101,7 +101,13 @@
       <section id="screen-ar" class="screen screen-ar" data-screen="ar" hidden>
         <video id="arCamera" class="camera-preview" autoplay muted playsinline></video>
         <canvas id="arCanvas" class="ar-canvas" aria-hidden="true"></canvas>
-        <div id="arFallbackFish" class="ar-fish" aria-hidden="true">🐟</div>
+        <div id="arFallbackFish" class="ar-fish" aria-hidden="true">
+          <span class="fallback-puddle"></span>
+          <span class="fallback-fish fallback-fish-main"></span>
+          <span class="fallback-fish fallback-fish-small fallback-fish-blue"></span>
+          <span class="fallback-fish fallback-fish-small fallback-fish-mint"></span>
+          <span class="fallback-fish fallback-fish-small fallback-fish-pink"></span>
+        </div>
         <div id="arReticle" class="ar-reticle" aria-hidden="true"></div>
         <div class="ar-copy">
           <p id="arStatus" class="ar-status">AR</p>
@@ -117,6 +123,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260723-camera-fish-post-defaults"></script>
+    <script src="./app.js?v=20260723-visible-ar-fallback"></script>
   </body>
 </html>
