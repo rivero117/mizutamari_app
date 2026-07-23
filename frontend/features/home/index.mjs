@@ -9,8 +9,13 @@ export function isVisibleOnHome(post, now = new Date(), days = MAX_VISIBLE_DAYS)
 }
 
 export function filterHomePosts(posts, filters = {}, now = new Date()) {
+  const requestedDays = Number(filters.observedDays);
+  const visibleDays = Number.isFinite(requestedDays) && requestedDays > 0
+    ? Math.min(requestedDays, MAX_VISIBLE_DAYS)
+    : MAX_VISIBLE_DAYS;
+
   return posts.filter((post) => {
-    if (!isVisibleOnHome(post, now)) return false;
+    if (!isVisibleOnHome(post, now, visibleDays)) return false;
     if (filters.minSize && Number(post.size) < Number(filters.minSize)) return false;
     if (filters.maxSize && Number(post.size) > Number(filters.maxSize)) return false;
     if (

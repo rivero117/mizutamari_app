@@ -10,6 +10,7 @@ const FISH_MODEL_URL = "./assets/fish/kajirare_fish.fbx";
 const FISH_BODY_TEXTURE_URL = "./assets/fish/kajirare_body.png";
 const FISH_EYE_TEXTURE_URL = "./assets/fish/kajirare_eye.png";
 const FISH_TAIL_TEXTURE_URL = "./assets/fish/kajirare_tail.png";
+const HOME_SYNC_INTERVAL_MS = 3000;
 
 const screens = Array.from(document.querySelectorAll("[data-screen]"));
 const navButtons = Array.from(document.querySelectorAll("[data-nav]"));
@@ -81,6 +82,7 @@ let homeFilters = {
   observedDays: "7"
 };
 let selectedPhotoFile = null;
+let homeSyncInFlight = false;
 
 const markers = [];
 
@@ -134,6 +136,7 @@ map.on("load", async () => {
 
 async function loadPuddles() {
   statusEl.textContent = "水たまりデータを読み込み中...";
+  homeSyncInFlight = true;
 
   try {
     const response = await fetch("/api/puddles", { cache: "no-store" });
@@ -155,6 +158,8 @@ async function loadPuddles() {
     allHomePuddles = puddles;
     apiAvailable = false;
     sourceBadge.textContent = "Static";
+  } finally {
+    homeSyncInFlight = false;
   }
 
   renderPins(loadAllPosts());
@@ -522,7 +527,7 @@ function setLayerVisibility(layerId, visibility) {
 }
 
 function renderPins(posts = loadPosts()) {
-  const visibleUserPuddles = posts.filter(isVisiblePost).map(specPostToPuddle);
+  const visibleUserPuddles = posts.filter((post) => isVisiblePost(post)).map(specPostToPuddle);
   const baseSource = allHomePuddles.length > 0 ? allHomePuddles : puddles;
   const basePuddles = baseSource.filter((puddle) => puddle.source !== "user");
   const fallbackBase = basePuddles.length > 0 ? basePuddles : officialPuddles;
@@ -557,6 +562,11 @@ function isVisiblePost(post, now = new Date()) {
 }
 
 function applyHomeFilters(items) {
+  const requestedDays = Number(homeFilters.observedDays);
+  const visibleDays = Number.isFinite(requestedDays) && requestedDays > 0
+    ? Math.min(requestedDays, 7)
+    : 7;
+
   return items.filter((puddle) => {
     const diameterCm = Number(puddle.diameterCm);
     if ((homeFilters.minSize || homeFilters.maxSize) && !Number.isFinite(diameterCm)) return false;
@@ -565,10 +575,7 @@ function applyHomeFilters(items) {
     if (homeFilters.transparency && Number(puddle.transparency) !== Number(homeFilters.transparency)) {
       return false;
     }
-    if (
-      homeFilters.observedDays &&
-      !isPuddleObservedWithinDays(puddle, Number(homeFilters.observedDays))
-    ) {
+    if (!isPuddleObservedWithinDays(puddle, visibleDays)) {
       return false;
     }
     return true;
@@ -618,7 +625,7 @@ function updateFilterSummary() {
   if (homeFilters.minSize) parts.push(`${homeFilters.minSize}cm以上`);
   if (homeFilters.maxSize) parts.push(`${homeFilters.maxSize}cm以下`);
   if (homeFilters.transparency) parts.push(`透明度${homeFilters.transparency}`);
-  if (homeFilters.observedDays) parts.push(`${homeFilters.observedDays}日以内`);
+  parts.push(`${homeFilters.observedDays || 7}日以内`);
   filterSummary.textContent = parts.length > 0 ? parts.join(" / ") : "全件表示";
 }
 
@@ -1072,6 +1079,7 @@ function showScreen(screenName) {
     if (mapReady) {
       map.resize();
       refreshHome();
+      syncRemoteHomePuddles();
       setView(currentView, true);
     }
     return;
@@ -1100,6 +1108,51 @@ function showScreen(screenName) {
 
 function refreshHome() {
   renderPins(loadAllPosts());
+}
+
+function apiPuddleRevision(items) {
+  return JSON.stringify(
+    items
+      .map((puddle) => [
+        puddle.id,
+        puddle.observedAt || puddle.createdAt || "",
+        Number(puddle.diameterCm || 0),
+        Number(puddle.transparency || 0),
+        String(puddle.photoDataUrl || "").length
+      ])
+      .sort(([leftId], [rightId]) => String(leftId).localeCompare(String(rightId)))
+  );
+}
+
+async function syncRemoteHomePuddles() {
+  const homeScreen = document.getElementById("screen-home");
+  if (!apiAvailable || !mapReady || homeSyncInFlight || document.hidden || homeScreen?.hidden) {
+    return false;
+  }
+
+  homeSyncInFlight = true;
+  try {
+    const response = await fetch("/api/puddles", { cache: "no-store" });
+    if (!response.ok) return false;
+
+    const nextApiPuddles = (await response.json()).puddles || [];
+    const currentApiPuddles = [...officialPuddles, ...remoteUserPuddles];
+    if (apiPuddleRevision(nextApiPuddles) === apiPuddleRevision(currentApiPuddles)) return false;
+
+    officialPuddles = nextApiPuddles.filter((puddle) => puddle.source !== "user");
+    remoteUserPuddles = nextApiPuddles.filter((puddle) => puddle.source === "user");
+    allHomePuddles = mergePuddleLists(
+      officialPuddles,
+      [...remoteUserPuddles, ...loadLocalUserPuddles()]
+    );
+    refreshHome();
+    statusEl.textContent = `${puddles.length}個の水たまりを表示しています。`;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    homeSyncInFlight = false;
+  }
 }
 
 async function startCamera(mode, options = {}) {
@@ -1535,6 +1588,21 @@ window.refreshHome = refreshHome;
 window.openGoogleMaps = openGoogleMaps;
 window.startCamera = startCamera;
 window.stopCamera = stopCamera;
+
+window.addEventListener("storage", (event) => {
+  if (event.key !== STORAGE_KEY || !mapReady) return;
+  refreshHome();
+});
+
+window.addEventListener("focus", () => {
+  syncRemoteHomePuddles();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) syncRemoteHomePuddles();
+});
+
+window.setInterval(syncRemoteHomePuddles, HOME_SYNC_INTERVAL_MS);
 
 navButtons.forEach((button) => {
   button.addEventListener("click", () => {

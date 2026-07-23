@@ -53,6 +53,36 @@ test("HOME shows only posts observed during the last week", () => {
   assert.deepEqual(filterHomePosts(posts, {}, NOW).map((post) => post.id), ["recent"]);
 });
 
+test("HOME keeps the seven-day limit when the observation filter is cleared", () => {
+  const posts = [
+    { id: "recent", observedAt: "2026-07-14T10:00:00+09:00", size: 100, transparency: 5 },
+    { id: "old", observedAt: "2026-07-01T10:00:00+09:00", size: 100, transparency: 5 }
+  ];
+
+  assert.deepEqual(
+    filterHomePosts(posts, { observedDays: "" }, NOW).map((post) => post.id),
+    ["recent"]
+  );
+});
+
+test("HOME combines size, transparency, and observation filters", () => {
+  const posts = [
+    { id: "match", observedAt: "2026-07-14T10:00:00+09:00", size: 180, transparency: 4 },
+    { id: "too-small", observedAt: "2026-07-14T10:00:00+09:00", size: 80, transparency: 4 },
+    { id: "too-old", observedAt: "2026-07-11T10:00:00+09:00", size: 180, transparency: 4 },
+    { id: "opaque", observedAt: "2026-07-14T10:00:00+09:00", size: 180, transparency: 2 }
+  ];
+
+  assert.deepEqual(
+    filterHomePosts(
+      posts,
+      { minSize: "100", maxSize: "250", transparency: "4", observedDays: "3" },
+      NOW
+    ).map((post) => post.id),
+    ["match"]
+  );
+});
+
 test("HOME directions hide coordinates from UI while retaining them in the URL", () => {
   const url = makeGoogleMapsDirectionsUrl({ lat: 33.97, lng: 134.36 });
   assert.match(url, /destination=33\.97%2C134\.36/);
