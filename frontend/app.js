@@ -26,12 +26,7 @@ const playerAvatarInput = document.getElementById("playerAvatarInput");
 const postForm = document.getElementById("postForm");
 const placeText = document.getElementById("placeText");
 const transparencyInput = document.getElementById("transparencyInput");
-const transparencyBars = document.getElementById("transparencyBars");
 const observedAtInput = document.getElementById("observedAtInput");
-const observedMonthInput = document.getElementById("observedMonthInput");
-const observedDayInput = document.getElementById("observedDayInput");
-const observedHourInput = document.getElementById("observedHourInput");
-const observedMinuteInput = document.getElementById("observedMinuteInput");
 const photoInput = document.getElementById("photoInput");
 const photoLibraryInput = document.getElementById("photoLibraryInput");
 const photoLabel = document.getElementById("photoLabel");
@@ -68,7 +63,6 @@ let xrLastFailure = "";
 let puddles = [];
 let officialPuddles = [];
 let selectedPhotoFile = null;
-let transparencyLevel = 1;
 
 const markers = [];
 
@@ -655,82 +649,19 @@ function transparencyToSpecValue(level) {
   return Math.min(Math.max(Math.ceil((11 - Number(level || 1)) / 2), 1), 5);
 }
 
-function transparencyColor(level) {
-  const opacity = 0.16 + level * 0.075;
-  const blue = 238 - level * 11;
-  return `rgba(14, ${Math.max(82, blue - 74)}, ${Math.max(120, blue)}, ${Math.min(opacity, 0.92)})`;
-}
-
 function setTransparencyLevel(level) {
-  transparencyLevel = Math.min(Math.max(Number(level || 1), 1), 10);
-  if (transparencyInput) transparencyInput.value = String(transparencyToSpecValue(transparencyLevel));
-  if (transparencyBars) {
-    transparencyBars.setAttribute("aria-valuenow", String(transparencyLevel));
-    transparencyBars.querySelectorAll("button").forEach((button) => {
-      const buttonLevel = Number(button.dataset.level);
-      button.classList.toggle("active", buttonLevel <= transparencyLevel);
-      button.style.background = buttonLevel <= transparencyLevel ? transparencyColor(buttonLevel) : "rgba(18, 57, 54, 0.08)";
-    });
+  const value = Math.min(Math.max(Number(level || 1), 1), 10);
+  if (transparencyInput) {
+    transparencyInput.value = String(value);
+    transparencyInput.style.setProperty("--transparency-progress", `${((value - 1) / 9) * 100}%`);
   }
   validatePostForm();
-}
-
-function fillNumberOptions(select, start, end, suffix = "") {
-  if (!select || select.options.length > 0) return;
-  for (let value = start; value <= end; value += 1) {
-    const option = document.createElement("option");
-    option.value = String(value).padStart(2, "0");
-    option.textContent = `${value}${suffix}`;
-    select.append(option);
-  }
-}
-
-function setupObservedAtWheel() {
-  fillNumberOptions(observedMonthInput, 1, 12, "月");
-  fillNumberOptions(observedHourInput, 0, 23, "時");
-  fillNumberOptions(observedMinuteInput, 0, 59, "分");
-  [observedMonthInput, observedDayInput, observedHourInput, observedMinuteInput].forEach((select) => {
-    if (select) select.addEventListener("change", updateObservedAtFromWheel);
-  });
-}
-
-function updateDayOptions(selectedDay = Number(observedDayInput?.value || 1)) {
-  if (!observedDayInput || !observedMonthInput) return;
-  const year = new Date().getFullYear();
-  const month = Number(observedMonthInput.value || 1);
-  const daysInMonth = new Date(year, month, 0).getDate();
-  observedDayInput.replaceChildren();
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const option = document.createElement("option");
-    option.value = String(day).padStart(2, "0");
-    option.textContent = `${day}日`;
-    observedDayInput.append(option);
-  }
-  observedDayInput.value = String(Math.min(selectedDay, daysInMonth)).padStart(2, "0");
 }
 
 function setObservedAt(date) {
   const local = new Date(date);
   if (Number.isNaN(local.getTime())) return;
-  if (observedMonthInput) observedMonthInput.value = String(local.getMonth() + 1).padStart(2, "0");
-  updateDayOptions(local.getDate());
-  if (observedHourInput) observedHourInput.value = String(local.getHours()).padStart(2, "0");
-  if (observedMinuteInput) observedMinuteInput.value = String(local.getMinutes()).padStart(2, "0");
-  updateObservedAtFromWheel();
-}
-
-function updateObservedAtFromWheel() {
-  if (!observedAtInput || !observedMonthInput || !observedDayInput || !observedHourInput || !observedMinuteInput) return;
-  updateDayOptions(Number(observedDayInput.value || 1));
-  const year = new Date().getFullYear();
-  const date = new Date(
-    year,
-    Number(observedMonthInput.value) - 1,
-    Number(observedDayInput.value),
-    Number(observedHourInput.value),
-    Number(observedMinuteInput.value)
-  );
-  observedAtInput.value = toDateTimeLocalValue(date);
+  if (observedAtInput) observedAtInput.value = toDateInputValue(local);
   validatePostForm();
 }
 
@@ -795,7 +726,7 @@ async function submitPost(event) {
     lat: selectedPoint.latitude,
     lng: selectedPoint.longitude,
     size: diameterCm,
-    transparency: Number(transparencyInput.value),
+    transparency: transparencyToSpecValue(Number(transparencyInput.value)),
     observedAt: observedAt.toISOString(),
     image: await readPhotoAsDataUrl(selectedPhotoFile),
     comment: "",
@@ -832,6 +763,11 @@ async function submitPost(event) {
 function toDateTimeLocalValue(date) {
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function toDateInputValue(date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 10);
 }
 
 function sizeToFishCount(size, review) {
@@ -1484,20 +1420,8 @@ postForm.querySelectorAll('input[name="size"]').forEach((input) => {
   input.addEventListener("change", validatePostForm);
 });
 
-transparencyBars.querySelectorAll("button").forEach((button) => {
-  button.addEventListener("click", () => setTransparencyLevel(Number(button.dataset.level)));
-});
-
-transparencyBars.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    setTransparencyLevel(transparencyLevel - 1);
-  }
-  if (event.key === "ArrowRight") {
-    event.preventDefault();
-    setTransparencyLevel(transparencyLevel + 1);
-  }
-});
+transparencyInput.addEventListener("input", () => setTransparencyLevel(Number(transparencyInput.value)));
+observedAtInput.addEventListener("change", validatePostForm);
 
 clickModeBtn.addEventListener("click", () => {
   clickMode = !clickMode;
@@ -1513,6 +1437,5 @@ playerAvatarInput.addEventListener("change", () => {
   statusEl.textContent = `自分のすがたを${getPlayerName()}にしました。`;
 });
 
-setupObservedAtWheel();
 setObservedAt(new Date());
 setTransparencyLevel(1);

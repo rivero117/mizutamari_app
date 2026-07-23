@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>雨あと水族館</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-ar-jump-post" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-post-tune" />
   </head>
   <body>
     <main id="app">
@@ -64,10 +64,10 @@
             <input id="photoInput" class="visually-hidden" type="file" accept="image/*" capture="environment" />
             <input id="photoLibraryInput" class="visually-hidden" type="file" accept="image/*" />
             <div class="photo-field">
-              <span id="photoLabel" class="photo-preview" aria-live="polite">写真</span>
+              <span id="photoLabel" class="photo-label" aria-live="polite">写真</span>
               <div class="photo-actions">
                 <button id="cameraPickBtn" class="subtle-button" type="button">撮影</button>
-                <button id="libraryPickBtn" class="subtle-button" type="button">フォルダ</button>
+                <button id="libraryPickBtn" class="subtle-button" type="button">アップロード</button>
               </div>
             </div>
           </section>
@@ -82,29 +82,11 @@
           </section>
 
           <section class="post-section" aria-label="透明度">
-            <input id="transparencyInput" type="hidden" value="5" />
-            <div id="transparencyBars" class="transparency-bars" role="slider" aria-label="透明度" aria-valuemin="1" aria-valuemax="10" aria-valuenow="1" tabindex="0">
-              <button type="button" data-level="1"></button>
-              <button type="button" data-level="2"></button>
-              <button type="button" data-level="3"></button>
-              <button type="button" data-level="4"></button>
-              <button type="button" data-level="5"></button>
-              <button type="button" data-level="6"></button>
-              <button type="button" data-level="7"></button>
-              <button type="button" data-level="8"></button>
-              <button type="button" data-level="9"></button>
-              <button type="button" data-level="10"></button>
-            </div>
+            <input id="transparencyInput" class="transparency-range" type="range" min="1" max="10" step="1" value="1" aria-label="透明度" />
           </section>
 
           <section class="post-section" aria-label="観測日時">
-            <input id="observedAtInput" type="hidden" />
-            <div class="date-wheel">
-              <select id="observedMonthInput" aria-label="月"></select>
-              <select id="observedDayInput" aria-label="日"></select>
-              <select id="observedHourInput" aria-label="時"></select>
-              <select id="observedMinuteInput" aria-label="分"></select>
-            </div>
+            <input id="observedAtInput" class="date-calendar" type="date" aria-label="観測日時" />
           </section>
 
           <div class="modal-actions">
@@ -132,6 +114,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260723-ar-jump-post"></script>
+    <script src="./app.js?v=20260723-post-tune"></script>
   </body>
 </html>
