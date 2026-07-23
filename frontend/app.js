@@ -1022,6 +1022,7 @@ async function initAr3D() {
   if (ar3D || !arCanvas) return;
 
   try {
+    arScreen.classList.add("use-fallback");
     const [THREE, { FBXLoader }] = await Promise.all([
       import(THREE_URL),
       import(FBX_LOADER_URL)
@@ -1040,7 +1041,6 @@ async function initAr3D() {
 
     const screenRoot = new THREE.Group();
     const xrRoot = new THREE.Group();
-    screenRoot.visible = false;
     xrRoot.visible = false;
     scene.add(screenRoot, xrRoot);
     scene.add(new THREE.AmbientLight(0xffffff, 1.85));
@@ -1078,12 +1078,14 @@ async function initAr3D() {
       startedAt: performance.now()
     };
     arScreen.classList.add("three-ready");
+    arScreen.classList.remove("use-fallback");
 
     window.addEventListener("resize", resizeAr3D);
     resizeAr3D();
     renderer.setAnimationLoop(animateAr3D);
   } catch (error) {
     console.warn("AR fish could not be initialized.", error);
+    arScreen.classList.add("use-fallback");
     ar3D = null;
   }
 }
@@ -1360,7 +1362,7 @@ function cleanupPlaneDetectionAr() {
   xrPlaced = false;
   if (ar3D?.renderer) {
     ar3D.renderer.xr.enabled = false;
-    ar3D.screenRoot.visible = false;
+    ar3D.screenRoot.visible = true;
     ar3D.xrRoot.visible = false;
   }
   arScreen.classList.remove("xr-on");

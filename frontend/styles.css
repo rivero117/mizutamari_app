@@ -707,6 +707,15 @@ input[type="number"] {
   pointer-events: none;
 }
 
+.screen-ar.three-ready:not(.use-fallback) .ar-fish,
+.screen-ar.xr-on .ar-fish {
+  display: none;
+}
+
+.screen-ar.use-fallback .ar-fish {
+  display: block;
+}
+
 .fallback-puddle,
 .fallback-fish,
 .fallback-fish::before,
