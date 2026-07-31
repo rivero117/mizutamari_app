@@ -834,10 +834,11 @@ input[type="number"] {
   left: 16px;
   right: 16px;
   top: 16px;
-  z-index: 3;
+  z-index: 20;
   display: grid;
   gap: 8px;
   justify-items: start;
+  pointer-events: none;
 }
 
 .ar-status {
@@ -871,6 +872,36 @@ input[type="number"] {
   box-shadow: 0 10px 24px rgba(18, 57, 54, 0.18);
   font-size: 13px;
   font-weight: 900;
+}
+
+.ar-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ar-controls .ar-capture-button {
+  pointer-events: auto;
+}
+
+.screen-ar.xr-on .ar-copy {
+  top: calc(16px + env(safe-area-inset-top));
+}
+
+.screen-ar.xr-on .ar-controls,
+.screen-ar:fullscreen .ar-controls {
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  z-index: 2147483647;
+}
+
+.screen-ar:fullscreen .ar-copy {
+  top: calc(16px + env(safe-area-inset-top));
+  z-index: 2147483647;
 }
 
 .ar-capture-button:active {

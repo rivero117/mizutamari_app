@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mizuta MAP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260731-ar-capture" />
+    <link rel="stylesheet" href="./styles.css?v=20260731-ar-capture-overlay" />
   </head>
   <body>
     <main id="app">
@@ -111,6 +111,8 @@
         <div class="ar-copy">
           <p id="arStatus" class="ar-status">AR</p>
           <p id="arHint" class="ar-hint">床や水たまりにスマホを向けてください</p>
+        </div>
+        <div class="ar-controls">
           <button id="arCaptureBtn" class="ar-capture-button" type="button">撮影</button>
         </div>
       </section>
@@ -123,6 +125,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=20260731-ar-capture"></script>
+    <script src="./app.js?v=20260731-ar-capture-overlay"></script>
   </body>
 </html>

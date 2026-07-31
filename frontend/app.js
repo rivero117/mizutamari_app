@@ -1407,7 +1407,8 @@ async function startPlaneDetectionAr() {
 
   const sessionInit = {
     requiredFeatures: ["hit-test"],
-    optionalFeatures: ["local-floor"]
+    optionalFeatures: ["local-floor", "dom-overlay"],
+    domOverlay: { root: arScreen }
   };
   let session;
 
@@ -1758,6 +1759,7 @@ clearBtn.addEventListener("click", clearUserPuddles);
 cancelPostBtn.addEventListener("click", closePostForm);
 postForm.addEventListener("submit", submitPost);
 arCaptureBtn?.addEventListener("click", captureArPhoto);
+arCaptureBtn?.addEventListener("beforexrselect", (event) => event.preventDefault());
 arScreen.addEventListener("click", async (event) => {
   if (event.target.closest("button")) return;
   if (!xrSession && navigator.xr?.requestSession) {
