@@ -1051,11 +1051,11 @@ async function initAr3D() {
 
     const loadedFish = await loadFishAsset(THREE, FBXLoader);
     const screenPuddle = createPuddleModel(THREE, 1);
-    const xrPuddle = createPuddleModel(THREE, 0.00135);
+    const xrPuddle = createPuddleModel(THREE, 0.00105);
     const screenFish = createFishSchool(THREE, loadedFish, 1);
     const xrFish = createProceduralFishSchool(THREE, 1);
     screenFish.position.y = 8;
-    xrFish.position.z = 0.02;
+    xrFish.position.z = 0.014;
     xrFish.scale.setScalar(1);
     xrFish.renderOrder = 3;
     xrFish.traverse((child) => {
@@ -1184,10 +1184,10 @@ function prepareFishModel(THREE, model, targetSize, colors = {}) {
 function createProceduralFishSchool(THREE, unitScale) {
   const school = new THREE.Group();
   const fishSpecs = [
-    { x: 0, y: 0, z: 0, length: 0.14, body: "#ffd96f", tail: "#95eadf", cheek: "#ffb7ca", phase: 0, turn: Math.PI / 9 },
-    { x: -0.1, y: -0.04, z: -0.002, length: 0.07, body: "#bdeeff", tail: "#ffe49a", cheek: "#ffd2dc", phase: 1.5, turn: Math.PI / 8 },
-    { x: 0.105, y: 0.04, z: -0.003, length: 0.064, body: "#cdf3d5", tail: "#bdeeff", cheek: "#ffe49a", phase: 3.1, turn: Math.PI / 8 },
-    { x: 0.035, y: -0.078, z: -0.004, length: 0.058, body: "#ffd2dc", tail: "#95eadf", cheek: "#ffe49a", phase: 4.4, turn: Math.PI / 8 }
+    { x: 0, y: 0, z: 0, length: 0.105, body: "#ffe28a", tail: "#9eeadf", cheek: "#ffc3d0", phase: 0, turn: Math.PI / 5 },
+    { x: -0.082, y: -0.036, z: -0.002, length: 0.056, body: "#bdeeff", tail: "#ffe7a8", cheek: "#ffd2dc", phase: 1.5, turn: Math.PI / 6 },
+    { x: 0.088, y: 0.038, z: -0.003, length: 0.052, body: "#d6f5d8", tail: "#bdeeff", cheek: "#ffe49a", phase: 3.1, turn: Math.PI / 6 },
+    { x: 0.032, y: -0.066, z: -0.004, length: 0.048, body: "#ffd2dc", tail: "#95eadf", cheek: "#ffe49a", phase: 4.4, turn: Math.PI / 6 }
   ];
 
   fishSpecs.forEach((spec) => {
@@ -1201,6 +1201,7 @@ function createProceduralFishSchool(THREE, unitScale) {
     fish.userData.baseRotationX = fish.rotation.x;
     fish.userData.baseRotationY = fish.rotation.y;
     fish.userData.baseRotationZ = fish.rotation.z;
+    fish.userData.isFlatFish = true;
     school.add(fish);
   });
 
@@ -1234,36 +1235,49 @@ function createFishTexture(THREE, colors) {
 
   ctx.save();
   ctx.translate(256, 144);
+
+  ctx.fillStyle = "rgba(255,255,255,0.34)";
+  ctx.beginPath();
+  ctx.ellipse(-12, 8, 170, 58, -0.06, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = colors.tail;
   ctx.beginPath();
-  ctx.moveTo(150, 0);
-  ctx.bezierCurveTo(210, -70, 236, -54, 214, 0);
-  ctx.bezierCurveTo(236, 54, 210, 70, 150, 0);
+  ctx.moveTo(144, 0);
+  ctx.bezierCurveTo(212, -78, 242, -54, 206, -6);
+  ctx.bezierCurveTo(242, 54, 212, 78, 144, 0);
   ctx.fill();
 
   ctx.fillStyle = colors.body;
   ctx.beginPath();
-  ctx.moveTo(-170, 0);
-  ctx.bezierCurveTo(-120, -82, 66, -90, 154, 0);
-  ctx.bezierCurveTo(66, 90, -120, 82, -170, 0);
+  ctx.moveTo(-178, 0);
+  ctx.bezierCurveTo(-126, -86, 68, -88, 158, 0);
+  ctx.bezierCurveTo(68, 88, -126, 86, -178, 0);
   ctx.fill();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(-118, -34);
+  ctx.bezierCurveTo(-24, -66, 70, -42, 124, -4);
+  ctx.stroke();
 
   ctx.fillStyle = colors.tail;
   ctx.globalAlpha = 0.9;
   ctx.beginPath();
-  ctx.moveTo(-12, -80);
-  ctx.bezierCurveTo(24, -124, 80, -82, 42, -46);
-  ctx.bezierCurveTo(26, -52, 6, -62, -12, -80);
+  ctx.moveTo(-8, -70);
+  ctx.bezierCurveTo(30, -118, 86, -76, 44, -38);
+  ctx.bezierCurveTo(28, -44, 8, -56, -8, -70);
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(-34, 58);
-  ctx.bezierCurveTo(24, 104, 76, 50, 30, 28);
-  ctx.bezierCurveTo(10, 38, -12, 48, -34, 58);
+  ctx.moveTo(-34, 56);
+  ctx.bezierCurveTo(24, 104, 76, 52, 30, 28);
+  ctx.bezierCurveTo(10, 38, -12, 48, -34, 56);
   ctx.fill();
   ctx.globalAlpha = 1;
 
   ctx.fillStyle = "rgba(255,255,255,0.45)";
-  [-42, 18, 78].forEach((x) => {
+  [-48, 18, 82].forEach((x) => {
     ctx.beginPath();
     ctx.ellipse(x, -14, 10, 48, -0.18, 0, Math.PI * 2);
     ctx.fill();
@@ -1271,17 +1285,21 @@ function createFishTexture(THREE, colors) {
 
   ctx.fillStyle = colors.cheek;
   ctx.beginPath();
-  ctx.ellipse(-105, 34, 26, 18, -0.12, 0, Math.PI * 2);
+  ctx.ellipse(-116, 28, 22, 14, -0.12, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "#4b3512";
   ctx.beginPath();
-  ctx.arc(-126, -24, 9, 0, Math.PI * 2);
+  ctx.arc(-136, -24, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.82)";
+  ctx.beginPath();
+  ctx.arc(-138, -27, 2.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "#8a6a1f";
-  ctx.lineWidth = 7;
+  ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.arc(-150, 6, 28, -0.75, 0.75);
+  ctx.arc(-156, 4, 24, -0.7, 0.7);
   ctx.stroke();
   ctx.restore();
 
@@ -1616,6 +1634,22 @@ function jumpPulse(time, interval) {
 function animateFishPose(fish, time, jumpTilt = 0, options = {}) {
   if (!fish) return;
   fish.children.forEach((child, index) => {
+    if (options.swimOnly && child.userData.isFlatFish) {
+      const phase = child.userData.phase || 0;
+      const swimX = Math.sin(time * 0.72 + phase) * (index === 0 ? 0.012 : 0.008);
+      const swimY = Math.sin(time * 0.95 + phase * 1.4) * (index === 0 ? 0.006 : 0.005);
+      const heading = Math.atan2(
+        Math.cos(time * 0.95 + phase * 1.4) * 0.006,
+        Math.cos(time * 0.72 + phase) * 0.012
+      );
+      child.position.x = (child.userData.baseX || 0) + swimX;
+      child.position.y = (child.userData.baseY || 0) + swimY;
+      child.rotation.x = child.userData.baseRotationX || 0;
+      child.rotation.y = child.userData.baseRotationY || 0;
+      child.rotation.z = (child.userData.baseRotationZ || 0) + heading + Math.sin(time * 4.2 + phase) * 0.08;
+      child.scale.setScalar(1 + Math.sin(time * 2.6 + phase) * 0.025);
+      return;
+    }
     const phase = child.userData.phase || 0;
     const turnAmount = options.swimOnly ? Math.PI / 5 : child.userData.turnAmount || Math.PI / 2;
     const turn = Math.sin(time * 1.18 + phase) * turnAmount;
