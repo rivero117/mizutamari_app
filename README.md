@@ -17,6 +17,8 @@
 
 ## 使用したデータ‧技術、ライセンス情報やライブラリ
 
+- 自分たちで収集した、水たまりの写真、大きさ、透明度、観測日時、位置情報を記録したオープンデータ
+- OpenStreetMap API
 - MapLibre GL JS
 - Three.js
 - WebXR hit-test
