@@ -1051,11 +1051,11 @@ async function initAr3D() {
 
     const loadedFish = await loadFishAsset(THREE, FBXLoader);
     const screenPuddle = createPuddleModel(THREE, 1);
-    const xrPuddle = createPuddleModel(THREE, 0.00105);
+    const xrPuddle = createPuddleModel(THREE, 0.00108);
     const screenFish = createFishSchool(THREE, loadedFish, 1);
     const xrFish = createProceduralFishSchool(THREE, 1);
     screenFish.position.y = 8;
-    xrFish.position.z = 0.014;
+    xrFish.position.z = 0.018;
     xrFish.scale.setScalar(1);
     xrFish.renderOrder = 3;
     xrFish.traverse((child) => {
@@ -1184,129 +1184,105 @@ function prepareFishModel(THREE, model, targetSize, colors = {}) {
 function createProceduralFishSchool(THREE, unitScale) {
   const school = new THREE.Group();
   const fishSpecs = [
-    { x: 0, y: 0, z: 0, length: 0.105, body: "#ffe28a", tail: "#9eeadf", cheek: "#ffc3d0", phase: 0, turn: Math.PI / 5 },
-    { x: -0.082, y: -0.036, z: -0.002, length: 0.056, body: "#bdeeff", tail: "#ffe7a8", cheek: "#ffd2dc", phase: 1.5, turn: Math.PI / 6 },
-    { x: 0.088, y: 0.038, z: -0.003, length: 0.052, body: "#d6f5d8", tail: "#bdeeff", cheek: "#ffe49a", phase: 3.1, turn: Math.PI / 6 },
-    { x: 0.032, y: -0.066, z: -0.004, length: 0.048, body: "#ffd2dc", tail: "#95eadf", cheek: "#ffe49a", phase: 4.4, turn: Math.PI / 6 }
+    { x: 0, y: 0, z: 0, length: 0.115, body: 0xffe28a, tail: 0x9eeadf, cheek: 0xffb7c8, phase: 0 },
+    { x: -0.084, y: -0.038, z: -0.002, length: 0.058, body: 0xbdeeff, tail: 0xffe7a8, cheek: 0xffd2dc, phase: 1.5 },
+    { x: 0.092, y: 0.036, z: -0.003, length: 0.052, body: 0xd6f5d8, tail: 0xbdeeff, cheek: 0xffe49a, phase: 3.1 },
+    { x: 0.03, y: -0.068, z: -0.004, length: 0.048, body: 0xffd2dc, tail: 0x95eadf, cheek: 0xffe49a, phase: 4.4 }
   ];
 
-  fishSpecs.forEach((spec) => {
-    const fish = createCuteFlatFish(THREE, spec.length * unitScale, spec);
+  fishSpecs.forEach((spec, index) => {
+    const fish = createCute3DFish(THREE, spec.length * unitScale, spec);
     fish.position.set(spec.x * unitScale, spec.y * unitScale, (spec.z + spec.length * 0.05) * unitScale);
     fish.userData.baseX = fish.position.x;
     fish.userData.baseY = fish.position.y;
     fish.userData.baseZ = fish.position.z;
     fish.userData.phase = spec.phase;
-    fish.userData.turnAmount = spec.turn;
+    fish.userData.swimRadius = index === 0 ? 0.014 : 0.008;
     fish.userData.baseRotationX = fish.rotation.x;
     fish.userData.baseRotationY = fish.rotation.y;
     fish.userData.baseRotationZ = fish.rotation.z;
-    fish.userData.isFlatFish = true;
+    fish.userData.isSurfaceFish = true;
     school.add(fish);
   });
 
   return school;
 }
 
-function createCuteFlatFish(THREE, length, colors) {
+function createCute3DFish(THREE, length, colors) {
   const fish = new THREE.Group();
-  const texture = createFishTexture(THREE, colors);
-  const material = new THREE.MeshBasicMaterial({
-    map: texture,
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: colors.body,
+    emissive: colors.body,
+    emissiveIntensity: 0.07,
+    roughness: 0.82,
+    metalness: 0
   });
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(length, length * 0.56), material);
-  plane.userData.isFishPlane = true;
-  fish.add(plane);
-  fish.rotation.z = 0;
+  const finMaterial = new THREE.MeshStandardMaterial({
+    color: colors.tail,
+    emissive: colors.tail,
+    emissiveIntensity: 0.08,
+    roughness: 0.8,
+    metalness: 0
+  });
+  const cheekMaterial = new THREE.MeshStandardMaterial({ color: colors.cheek, roughness: 0.78 });
+  const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x3f2a14, roughness: 0.5 });
+  const shineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.36 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 36, 20), bodyMaterial);
+  body.scale.set(length * 0.46, length * 0.23, length * 0.13);
+  body.position.x = -length * 0.04;
+  fish.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 18), bodyMaterial);
+  head.scale.set(length * 0.23, length * 0.235, length * 0.128);
+  head.position.x = -length * 0.38;
+  fish.add(head);
+
+  const tailTop = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14), finMaterial);
+  tailTop.scale.set(length * 0.16, length * 0.105, length * 0.045);
+  tailTop.position.set(length * 0.43, length * 0.07, 0);
+  tailTop.rotation.z = -0.48;
+  fish.add(tailTop);
+
+  const tailBottom = tailTop.clone();
+  tailBottom.position.y = -length * 0.07;
+  tailBottom.rotation.z = 0.48;
+  fish.add(tailBottom);
+  fish.userData.tailTop = tailTop;
+  fish.userData.tailBottom = tailBottom;
+
+  const dorsal = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), finMaterial);
+  dorsal.scale.set(length * 0.13, length * 0.06, length * 0.036);
+  dorsal.position.set(-length * 0.02, 0, length * 0.124);
+  dorsal.rotation.y = 0.22;
+  fish.add(dorsal);
+
+  [-1, 1].forEach((side) => {
+    const fin = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), finMaterial);
+    fin.scale.set(length * 0.105, length * 0.052, length * 0.032);
+    fin.position.set(-length * 0.12, side * length * 0.205, length * 0.012);
+    fin.rotation.z = side * 0.7;
+    fish.add(fin);
+
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(length * 0.025, 16, 10), eyeMaterial);
+    eye.position.set(-length * 0.43, side * length * 0.078, length * 0.103);
+    fish.add(eye);
+
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(length * 0.026, 16, 10), cheekMaterial);
+    cheek.scale.set(1.2, 0.72, 0.36);
+    cheek.position.set(-length * 0.405, side * length * 0.132, length * 0.065);
+    fish.add(cheek);
+  });
+
+  [-0.09, 0.02, 0.13].forEach((x) => {
+    const scale = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), shineMaterial);
+    scale.scale.set(length * 0.036, length * 0.009, length * 0.004);
+    scale.position.set(x * length, -length * 0.02, length * 0.13);
+    scale.rotation.z = -0.2;
+    fish.add(scale);
+  });
+
   return fish;
-}
-
-function createFishTexture(THREE, colors) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 288;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-
-  ctx.save();
-  ctx.translate(256, 144);
-
-  ctx.fillStyle = "rgba(255,255,255,0.34)";
-  ctx.beginPath();
-  ctx.ellipse(-12, 8, 170, 58, -0.06, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = colors.tail;
-  ctx.beginPath();
-  ctx.moveTo(144, 0);
-  ctx.bezierCurveTo(212, -78, 242, -54, 206, -6);
-  ctx.bezierCurveTo(242, 54, 212, 78, 144, 0);
-  ctx.fill();
-
-  ctx.fillStyle = colors.body;
-  ctx.beginPath();
-  ctx.moveTo(-178, 0);
-  ctx.bezierCurveTo(-126, -86, 68, -88, 158, 0);
-  ctx.bezierCurveTo(68, 88, -126, 86, -178, 0);
-  ctx.fill();
-
-  ctx.strokeStyle = "rgba(255,255,255,0.28)";
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.moveTo(-118, -34);
-  ctx.bezierCurveTo(-24, -66, 70, -42, 124, -4);
-  ctx.stroke();
-
-  ctx.fillStyle = colors.tail;
-  ctx.globalAlpha = 0.9;
-  ctx.beginPath();
-  ctx.moveTo(-8, -70);
-  ctx.bezierCurveTo(30, -118, 86, -76, 44, -38);
-  ctx.bezierCurveTo(28, -44, 8, -56, -8, -70);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(-34, 56);
-  ctx.bezierCurveTo(24, 104, 76, 52, 30, 28);
-  ctx.bezierCurveTo(10, 38, -12, 48, -34, 56);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  [-48, 18, 82].forEach((x) => {
-    ctx.beginPath();
-    ctx.ellipse(x, -14, 10, 48, -0.18, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  ctx.fillStyle = colors.cheek;
-  ctx.beginPath();
-  ctx.ellipse(-116, 28, 22, 14, -0.12, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#4b3512";
-  ctx.beginPath();
-  ctx.arc(-136, -24, 8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.82)";
-  ctx.beginPath();
-  ctx.arc(-138, -27, 2.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#8a6a1f";
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.arc(-156, 4, 24, -0.7, 0.7);
-  ctx.stroke();
-  ctx.restore();
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-  return texture;
 }
 
 function createPuddleModel(THREE, unitScale) {
@@ -1634,20 +1610,29 @@ function jumpPulse(time, interval) {
 function animateFishPose(fish, time, jumpTilt = 0, options = {}) {
   if (!fish) return;
   fish.children.forEach((child, index) => {
-    if (options.swimOnly && child.userData.isFlatFish) {
+    if (options.swimOnly && child.userData.isSurfaceFish) {
       const phase = child.userData.phase || 0;
-      const swimX = Math.sin(time * 0.72 + phase) * (index === 0 ? 0.012 : 0.008);
-      const swimY = Math.sin(time * 0.95 + phase * 1.4) * (index === 0 ? 0.006 : 0.005);
+      const radius = child.userData.swimRadius || 0.008;
+      const swimX = Math.sin(time * 0.72 + phase) * radius;
+      const swimY = Math.sin(time * 0.95 + phase * 1.4) * radius * 0.45;
+      const hop = jumpPulse(time + phase * 0.25, index === 0 ? 5.4 : 6.2) * (index === 0 ? 0.01 : 0.005);
       const heading = Math.atan2(
-        Math.cos(time * 0.95 + phase * 1.4) * 0.006,
-        Math.cos(time * 0.72 + phase) * 0.012
+        Math.cos(time * 0.95 + phase * 1.4) * radius * 0.45,
+        Math.cos(time * 0.72 + phase) * radius
       );
       child.position.x = (child.userData.baseX || 0) + swimX;
       child.position.y = (child.userData.baseY || 0) + swimY;
-      child.rotation.x = child.userData.baseRotationX || 0;
-      child.rotation.y = child.userData.baseRotationY || 0;
+      child.position.z = (child.userData.baseZ || 0) + Math.sin(time * 1.8 + phase) * 0.0015 + hop;
+      child.rotation.x = (child.userData.baseRotationX || 0) + hop * 2.2;
+      child.rotation.y = (child.userData.baseRotationY || 0) + Math.sin(time * 1.7 + phase) * 0.04;
       child.rotation.z = (child.userData.baseRotationZ || 0) + heading + Math.sin(time * 4.2 + phase) * 0.08;
       child.scale.setScalar(1 + Math.sin(time * 2.6 + phase) * 0.025);
+      if (child.userData.tailTop) {
+        child.userData.tailTop.rotation.z = -0.48 + Math.sin(time * 8 + phase) * 0.18;
+      }
+      if (child.userData.tailBottom) {
+        child.userData.tailBottom.rotation.z = 0.48 - Math.sin(time * 8 + phase) * 0.18;
+      }
       return;
     }
     const phase = child.userData.phase || 0;
