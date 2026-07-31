@@ -860,6 +860,23 @@ input[type="number"] {
   font-weight: 800;
 }
 
+.ar-capture-button {
+  min-width: 72px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 226, 138, 0.94);
+  color: var(--ink);
+  box-shadow: 0 10px 24px rgba(18, 57, 54, 0.18);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ar-capture-button:active {
+  transform: translateY(1px);
+}
+
 .popup-photo {
   width: 170px;
   max-height: 130px;

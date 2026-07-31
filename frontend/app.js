@@ -42,6 +42,7 @@ const arFallbackFish = document.getElementById("arFallbackFish");
 const arReticle = document.getElementById("arReticle");
 const arHintEl = document.getElementById("arHint");
 const arScreen = document.getElementById("screen-ar");
+const arCaptureBtn = document.getElementById("arCaptureBtn");
 
 let currentView = "map";
 let clickMode = false;
@@ -1026,7 +1027,8 @@ async function initAr3D() {
     const renderer = new THREE.WebGLRenderer({
       alpha: true,
       antialias: true,
-      canvas: arCanvas
+      canvas: arCanvas,
+      preserveDrawingBuffer: true
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
@@ -1557,6 +1559,63 @@ function positionArFish(x, y, shouldLock = true) {
   }
 }
 
+function drawVideoCover(ctx, video, width, height) {
+  const videoWidth = video.videoWidth || width;
+  const videoHeight = video.videoHeight || height;
+  const scale = Math.max(width / videoWidth, height / videoHeight);
+  const drawWidth = videoWidth * scale;
+  const drawHeight = videoHeight * scale;
+  const dx = (width - drawWidth) / 2;
+  const dy = (height - drawHeight) / 2;
+  ctx.drawImage(video, dx, dy, drawWidth, drawHeight);
+}
+
+function downloadCanvasImage(canvas) {
+  const link = document.createElement("a");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  link.download = `mizuta-ar-${timestamp}.png`;
+  link.href = canvas.toDataURL("image/png");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function captureArPhoto() {
+  if (xrSession) {
+    setCameraStatus("ar", "平面検知AR中は撮影できません");
+    setArHint("カメラ表示の仮配置で撮影できます");
+    return;
+  }
+  if (!arCamera?.srcObject || arCamera.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    setCameraStatus("ar", "カメラ起動後に撮影できます");
+    return;
+  }
+
+  const rect = arCanvas.getBoundingClientRect();
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.round(rect.width * scale));
+  const height = Math.max(1, Math.round(rect.height * scale));
+  const captureCanvas = document.createElement("canvas");
+  captureCanvas.width = width;
+  captureCanvas.height = height;
+  const ctx = captureCanvas.getContext("2d");
+
+  ctx.fillStyle = "#123936";
+  ctx.fillRect(0, 0, width, height);
+  drawVideoCover(ctx, arCamera, width, height);
+
+  if (ar3D?.renderer) {
+    ar3D.renderer.render(ar3D.scene, ar3D.screenCamera);
+  }
+  if (arCanvas) {
+    ctx.drawImage(arCanvas, 0, 0, width, height);
+  }
+
+  downloadCanvasImage(captureCanvas);
+  setCameraStatus("ar", "撮影しました");
+  setArHint("ぴょこぴょこ写真を保存しました");
+}
+
 function animateAr3D(timestamp, frame) {
   if (!ar3D) return;
   const t = ((timestamp || performance.now()) - ar3D.startedAt) / 1000;
@@ -1698,6 +1757,7 @@ addHereBtn.addEventListener("click", locateUserAndOpenForm);
 clearBtn.addEventListener("click", clearUserPuddles);
 cancelPostBtn.addEventListener("click", closePostForm);
 postForm.addEventListener("submit", submitPost);
+arCaptureBtn?.addEventListener("click", captureArPhoto);
 arScreen.addEventListener("click", async (event) => {
   if (event.target.closest("button")) return;
   if (!xrSession && navigator.xr?.requestSession) {
